@@ -1,0 +1,172 @@
+#!/usr/bin/perl -w
+# distributed dynamic greylisting server
+
+use strict;
+use 5.014;
+use utf8;
+# automatic USELIB
+
+use Carp;
+use Data::Dumper; # DEBUG
+use Getopt::Long;
+use IO::Socket;
+use POSIX qw(setsid setuid setgid);
+use DDgrey::Perl6::Parameters;
+use Sys::Syslog;
+
+use DDgrey::MainConfig;
+use DDgrey::Run qw(lm error ensure_dir);
+
+# ---- init ----
+
+our @on_done;
+our $debug=0;
+our $dir;
+
+my $version='__VERSION__';
+
+# signal handlers
+# $|=1;
+$SIG{CHLD}='IGNORE'; # automatic closing
+$SIG{TERM}=sub{daemon_close('TERM')};
+$SIG{INT}=sub{daemon_close('INT')};
+# $SIG{__DIE__} = sub { Carp::confess @_ }; # DEBUG
+
+# -- fetch argumetns --
+Getopt::Long::Configure qw(bundling no_ignore_case);
+GetOptions(
+    # s=ddgreyd - dynamic greylisting daemon
+    # l=commands
+    # include=help-version
+    # begin genop generated section
+    'h|help'=>sub{
+    	print "ddgreyd - dynamic greylisting daemon\n";
+    	print "\n";
+    	print "commands\n";
+    	print "-h --help       show this help text\n";
+    	print "-V --version    show version\n";
+    	print "\n";
+    	print "options:\n";
+    	print "-d --debug      increase debug information, do not daemonize\n";
+    	print "-D --dir <D>    look for config and other files in <D>\n";
+    	exit 0;
+    },
+    'V|version'=>sub{print "$version\n";exit 0},
+    # end genop generated section
+
+    # l=options
+    'd|debug'=>sub{$debug++},	# increase debug information, do not daemonize
+    'D|dir=s'=>\$dir,	        # look for config and other files in <D>
+    ) or error("bad command line");
+
+# read configuration
+our $config=DDgrey::MainConfig->new();
+
+# set host name
+our $hostname=($config->{name} or `hostname`);
+chomp $hostname;
+$hostname=~/localhost/ and error("localhost not allowed as hostname");
+
+# get user id
+our $uid=undef;
+our $gid=undef;
+if($< == 0){
+    my $user=$config->{user} // '_RUNUSER_';
+    (undef,undef,$uid,$gid)=getpwnam($user);
+    defined($uid) or error("no such user $user");
+};
+
+# ensure rundir
+ensure_dir("_RUNDIR_",$uid,$gid);
+my $pidfile="__RUNDIR__/ddgreyd.pid";
+
+# start syslog
+DDgrey::Run::syslog_init("ddgreyd");
+
+# -- start select --
+use DDgrey::Select;
+our $select=DDgrey::Select->new();
+
+# -- start store --
+use DDgrey::DBStore;
+our $store=DDgrey::DBStore->init();
+
+# -- startar dispatcher --
+use DDgrey::Dispatcher;
+our $dispatcher=DDgrey::Dispatcher->new();
+
+# -- start services --
+our @services=($store,$select,$dispatcher);
+
+# local sync server
+use DDgrey::LocalServer;
+push @services,DDgrey::LocalServer->new();
+
+# remote sync service
+use DDgrey::RemoteServer;
+if($config->{accept} or $config->{accept_reader} or $config->{accept_writer} or $config->{peer}){
+    push @services,DDgrey::RemoteServer->new();
+};
+
+# sync clients
+for my $r (@{$config->{server_read}},@{$config->{server}},@{$config->{peer}}){
+    $dispatcher->register_client(DDgrey::ReadClient->new($r),1,0);
+};
+
+# service for greylisting socket
+use DDgrey::GreylistServer;
+push @services,DDgrey::GreylistServer->new();
+    
+# exim4 event reporter
+use DDgrey::Reporter::Exim4;
+if(grep {$_ eq 'exim4'} @{$config->{service}}){
+    push @services,DDgrey::Reporter::Exim4->new();
+};
+
+# run pending init tasks
+for my $s (@on_done){
+    &$s();
+};
+	   
+# -- start daemon --
+if(!$debug){daemonize()};
+
+# set uid
+if($< == 0){
+    setgid($gid);
+    setuid($uid);
+};
+
+lm("all services started");
+
+# ---- main ----
+$select->run();
+
+# close services on exit
+lm("stopping services");
+for my $service (reverse @services){
+    $service->close();
+};
+lm("all services stopped");
+exit 0;
+
+# ---- functions ----
+
+sub daemonize{
+    # effect: daemonize process
+    chdir '/'               or error("error: can't chdir to /: $!");
+    open STDIN, '/dev/null' or error("error: can't read /dev/null: $!");
+    open STDOUT, '>/dev/null' or error("error: Can't write to /dev/null: $!");
+    
+    defined(my $pid = fork) or error("error: can't fork: $!");
+    exit if $pid;
+    setsid                  or error("error: can't start a new session: $!");
+    open STDERR, '>&STDOUT' or error("error: can't dup stdout: $!");
+    system "echo $$ > $pidfile";
+};
+
+sub daemon_close($sig){
+    # effect: close daemon on signal sig
+    lm("received signal $sig, closing");
+    $select->exit();
+};

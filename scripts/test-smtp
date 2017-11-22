@@ -1,0 +1,2 @@
+#!/bin/sh
+(sleep 1;echo "helo foo";sleep 1;echo "mail from:foo@example.com";sleep 1;echo "rcpt to:foo@localhost";sleep 1;echo "data";sleep 1;echo ".";sleep 1;echo "quit")|nc localhost 25

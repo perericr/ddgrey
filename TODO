@@ -1,0 +1,32 @@
+
+prio 1
+======
+? koll av config-argument
+? säkerställ fortsatt körning vid fel
+? Exim4: tolka logg-datum i rätt tidszon
+
+prio 2
+======
+* Server: ta bort eget namn från peer (gör det möjligt ha samma dgrey.conf)
+* radering av gamla poster (intervall-jobb startat från Report)
+   
+prio 3
+======
+* översättning av kommentarer till engelska
+* sammanslagning av flera identiska DNS-requests
+* IPv6
+* möjlighet detektera anslutning till sekundär MX trots primär i funktion
+   
+vilande
+=======
+* Server: ersätt accept() och stäng med att inte acceptera
+   
+klart
+=====
+X DNS : skilja på negativt svar och inget svar för gethostbyname
+? hantera att greylist-klient stängt när dags att skriva
+? automatisk återanslutning till server
+X koll av argument till ny rapport
+X ta bort push och bara ha pull?
+? byt protkoll från \n till \r\n
+? hantera manuell spam-rapportering

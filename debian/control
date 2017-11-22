@@ -1,0 +1,21 @@
+Source: ddgrey
+Section: mail
+Priority: optional
+Maintainer: Per Eric Rosén <per@rosnix.net>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.5
+#Vcs-Git: git:// ...
+
+Package: ddgrey
+Architecture: all
+Depends: ${misc:Depends} libdate-manip-perl,libdbd-sqlite3-perl,libdbi-perl,libnet-netmask-perl,libnet-dns-perl (>= 0.66),liblist-moreutils-perl,libdomain-publicsuffix-perl,libcache-cache-perl,libemail-received-perl,libemail-mime-perl,libtimedate-perl,exim4-base
+Description: ddgrey - dynamic distributed greylisting daemon
+ DDgrey acts as a normal greylisting daemon, being queried over a UNIX domain
+ socket, and answering if a mail should be allowed, defered or denied.
+ .
+ It can also get reports from the MTA (currently by reading exim4 log files)
+ about suspect activities, and receive reports from spamtraps, spam reporting
+ aliases and ddgrey servers on other hosts (normally on your other MX servers).
+ Using this information, ddgrey can adjust the greylisting delay for a specific
+ host from no greylist at all, to a long delay or outright blacklisting.
+ 

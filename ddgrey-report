@@ -1,0 +1,180 @@
+#!/usr/bin/perl -w
+# dynamic greylisting status spam reporting tool
+
+use strict;
+use 5.014;
+use utf8;
+# automatic USELIB
+
+use Carp;
+use Data::Dumper; # DEBUG
+use Date::Parse;
+use Email::MIME;
+use Email::Received;
+use Getopt::Long;
+use IO::Socket;
+use Net::Netmask;
+use POSIX qw(setsid);
+use DDgrey::Perl6::Parameters;
+use Sys::Syslog;
+
+use DDgrey::DNS qw(resolved);
+use DDgrey::MainConfig;
+use DDgrey::ReportClient;
+use DDgrey::Run qw(lm error);
+use DDgrey::Select;
+
+sub parse_spam;
+sub report_ip;
+
+# ---- init ----
+
+our $debug=0;
+our $dir;
+
+my $version='__VERSION__';
+my $trusted;
+
+# -- fetch arguments --
+
+Getopt::Long::Configure qw(bundling no_ignore_case);
+GetOptions(
+    # s=ddgrey-report - report spam to ddgrey
+    # l=commands
+    # include=help-version
+    # begin genop generated section
+    'h|help'=>sub{
+    	print "ddgrey-report - report spam to ddgrey\n";
+    	print "\n";
+    	print "commands:\n";
+    	print "-h --help    show this help text\n";
+    	print "-V --version show version\n";
+    	print "\n";
+    	print "options:\n";
+    	print "-d --debug   increase debug information\n";
+    	print "-D --dir <D> look for config and other files in <D>\n";
+    	exit 0;
+    },
+    'V|version'=>sub{print "$version\n";exit 0},
+    # end genop generated section
+    
+    # l=options
+    'd|debug'=>sub{$debug++},	# increase debug information
+    'D|dir=s'=>\$dir,	        # look for config and other files in <D>
+    ) or error("bad command line");
+
+# read configuration
+our $config=DDgrey::MainConfig->new();
+
+for my $r (@{$config->{trusted}}){
+    for my $ip (resolved($r)){
+	my $m=Net::Netmask->new2($ip) or error("unknow address/range $ip");
+	push @$trusted,$m;
+    };
+};
+
+# set host name
+our $hostname=($config->{name} or `hostname`);
+chomp $hostname;
+$hostname=~/localhost/ and error("localhost not allowed as hostname");
+
+# get user id
+our $uid=undef;
+our $gid=undef;
+if($< == 0){
+    my $user=$config->{user} // '_RUNUSER_';
+    (undef,undef,$uid,$gid)=getpwnam($user);
+    defined($uid) or error("no such user $user");
+};
+
+# start syslog
+DDgrey::Run::syslog_init("ddgrey-report");
+
+# -- start select --
+our $select=DDgrey::Select->new();
+
+# -- start store --
+use DDgrey::DBStore qw($db);
+our $store=DDgrey::DBStore->init();
+
+# -- start client --
+our $socket=($main::dir // "_RUNDIR_")."/ddgrey.socket";
+our $client=DDgrey::ReportClient->new({arg=>[$socket]},5);
+$select->register_timer(30,sub{
+    $client->connected() or error("error: could not connect to ddgrey server");
+});
+
+
+our @services=($store,$select,$client);
+
+# ---- main ----
+
+# extract and parse attached message
+my $text=join('',<>);
+my $mail=Email::MIME->new($text) or error("could not parse email");
+
+if($mail->header('resent-to') and $mail->header('x-received')){
+    # bounced message
+    parse_spam($text,1);
+}
+else{
+    # RFC 822 attachment
+    my @a=grep {($_->content_type() // '')=~/^MESSAGE\/RFC822\b/} $mail->parts();
+    @a < 1 and error("no attached message found");
+    @a > 1 and error("too many attached messages found");
+    parse_spam($a[0]->body(),0);
+};
+
+# run select until sent
+$client->schedule(sub{$select->exit()});
+$select->run();
+
+# closing down
+for my $service (reverse @services){
+    $service->close();
+};
+
+# ---- functions ----
+
+sub parse_spam($text,$x){
+    my $mail=Email::MIME->new($text) or error("could not parse spam");
+    my $to=undef;
+    my $id=undef;
+    my $time=time();
+    RECEIVED: for my $h ($mail->header($x ? 'x-received' : 'received')){
+        my $r=parse_received($h);
+	defined($r) or next;
+	defined($r->{reason}) and next;
+	$h=~/\bfor (\S+)\b/ and $to=$1;
+	if($h=~/^.*\;\s*(.*)$/){
+	    my $t=str2time($1);
+	    defined($t) and $time=$t;
+	};
+	my $ip=$r->{ip} or error("received without ip");
+	$id=$r->{id}//undef;
+	for my $m (@$trusted){
+	    if($m->match($ip)){
+		next RECEIVED;
+	    };
+	};
+	if($config->{report_verify}//0){
+	    DDgrey::Report->find_ok($ip,$id) or error("no mail was found received from $ip id $id");
+	};
+	report_ip($ip,$id,$r->{envfrom},$to,$time);
+	return;
+    };
+    error("only trusted senders found in received");
+};
+
+sub report_ip($ip,$id,$from,$to,$time){
+    my $report=DDgrey::Report->new({
+	event=>'manual',
+	ip=>$ip,
+	e_from=>$from,
+	e_to=>$to,
+	mta_id=>$id,
+	time=>$time,
+	reporter=>"ddgrey-report"
+    });
+    $client->report($report);
+};

@@ -1,0 +1,11 @@
+Quick setup with Exim 4
+-----------------------
+ddgrey Debian package is already configured for the Exim 4 user.
+
+Add the lines in /usr/share/doc/ddgrey/exim4.conf to your exim4 rcpt ACL;
+this is located in /etc/exim4/conf.d/acl/30_exim4-config_check_rcpt if you
+use the Debian split exim configuration.
+
+Otherwise, see README from section "peering with other ddgrey servers".
+
+ -- Per Eric Rosén <per@rosnix.net>, Sat, 13 May 2017 00:20:02 +0200

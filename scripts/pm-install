@@ -1,0 +1,37 @@
+#!/usr/bin/perl -w
+#Installerar perl-moduler baserat på första klassnamnet i filen
+#$Id: pm-install,v 1.1 2009-07-17 08:57:37 per Exp $	
+
+use Getopt::Long;
+
+$install_options='';
+GetOptions(
+	'i|install-options=s'=>\$install_options,
+	'm|mode=s'=>\$mode,
+	'h|help'=>sub{
+		print "install-pm <FILER> <BASMAPP>\n";
+		print "installerar perl-moduler till BASMAPP och gör mappar\n";
+		print "\n";
+		print "-i --install-options <A>	argument till install\n";
+		print "-m --mode <M>		sätt filrättigheter\n";
+		print "-h --help		visa denna hjälp\n";
+	}
+);
+$modeline='';
+defined($mode) and $modeline="-m $mode";
+
+@modules=@ARGV or die "för få argument, prova --help\n";
+$base=pop(@modules) or die "för få argument, prova --help\n";
+
+MOD: for $src (@modules){
+	open MOD,$src or die "filen $src gick inte att öppna\n";
+	while(defined($in=<MOD>)){
+		if($in=~/package\s+([\w\:]+)/){
+			$package=$1;
+			$package=~s/\:\:/\//g;
+			$package="$package.pm";
+			system "install -D $modeline $install_options $src $base/$package";
+		};
+	};
+	close MOD;
+};
