@@ -85,14 +85,22 @@ If you have other ddgrey servers you wish to communicate with,
 add lines "peer = <hostname>" to /etc/ddgrey/ddgrey.conf for each server.
 Please ensure in your firewall that they can reach each other on TCP port 722.
 
-setting up spamtraps
---------------------
-Add trap addresses to your aliases files piped to /dev/null, like
-trap.trapson: /dev/null
+using spamtraps
+---------------
+If you wish to set up spamtraps, add the trap addresses to your aliases files
+piped to /dev/null, like "trap.trapson: /dev/null"
 
-Add the fully qualified trap addresses to a spamtraps file, one address
-for each line. For example, you may use /etc/ddgrey/spamtraps.
-Add a line "traps = <your spamtraps file>" in /etc/ddgrey.conf.
+Add the fully qualified trap addresses to /etc/ddgrey/spamtraps. The format is
+similiar to an aliases file with lines like:
+<fully qualified address>:"hard"|"soft".
+
+"soft" and "hard" determine how hard you wish to punish servers for using the
+trap. "hard" means instant blacklisting - if no redeeming qualities of the
+server are found. Normal practice is to use "hard" for made-up addresses never
+used for legitimate email, and "soft" for old now unused email addresses.
+
+Ensure there is a line "traps = <your spamtraps file>" in /etc/ddgrey.conf.
+If you use the default config there is already such a line.
 
 Add that email adresses to you web pages, and make it only visible to spam 
 harvesting robots, for example by putting it in a hidden div.
