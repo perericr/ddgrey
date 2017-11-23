@@ -9,7 +9,7 @@ prio 2
 ======
 * Server: ta bort eget namn från peer (gör det möjligt ha samma dgrey.conf)
 * radering av gamla poster (intervall-jobb startat från Report)
-   
+* support for postfix (http://www.postfix.org/SMTPD_POLICY_README.html)   
 prio 3
 ======
 * översättning av kommentarer till engelska
