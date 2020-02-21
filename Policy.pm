@@ -370,7 +370,7 @@ sub update_resolved($self,$next){
 	delete $scores->{spamcop};
     };
 
-    # -- manuella rapporter --
+    # -- manuella rapporter av mail --
     
     my $count;
     
