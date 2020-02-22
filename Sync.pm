@@ -16,6 +16,11 @@ use parent qw(DDgrey::DBModel);
 # beskrivning
 our $table='sync';
 our @fields=('id integer primary key autoincrement','name text','last integer');
+our %indexes=(
+    'id'=>['id'],
+    'name'=>['name'],
+    );
+
 
 # ---- klassmetoder för översikt (ger ej objekt) ----
 

@@ -27,6 +27,13 @@ use parent qw(DDgrey::DBModel);
 # beskrivning
 our $table='report';
 our @fields=('id integer primary key autoincrement','origin text','origin_id integer','reporter text','time integer','stored integer','ip text','domain text','event text','e_from text','e_to text','mta_id text');
+our %indexes=(
+    'id'=>['id'],
+    'time'=>['time'],
+    'stored'=>['stored'],
+    'ip'=>['ip','event','time'],
+    'domain'=>['domain','event','time'],
+    );
 
 # ---- klassmetoder för översikt (ger ej objekt) ----
 

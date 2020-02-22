@@ -29,6 +29,11 @@ our @check_plugin=();
 # beskrivning
 our $table='policy';
 our @fields=('id integer primary key autoincrement','ip text unique','domain text','grey integer','black integer','fdate integer','tdate integer','score integer','reason text');
+our %indexes=(
+    'id'=>['id'],
+    'ip'=>['ip'],
+    'domain'=>['domain'],
+    );
 
 # ---- klassmetoder ----
 
@@ -515,7 +520,6 @@ push @main::on_done,sub{
 	}
     );
 };
-
 
 DDgrey::DBStore::register_model(__PACKAGE__);
 return 1;

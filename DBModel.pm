@@ -10,6 +10,9 @@ use DDgrey::DBStore qw($db);
 use Data::Dumper; # DEBUG
 use DDgrey::Perl6::Parameters;
 
+# variables to override if needed
+our $indexes={};
+
 # ---- klassmetoder ----
 
 sub get_table($class){
@@ -22,7 +25,16 @@ sub ensure_tables($class){
     # effekt: ser till att databas innehåller rätt tabeller
     $class=ref($class)||$class;
     no strict 'refs';
+
+    # gör tabell
     $db->query('create table if not exists '.${$class.'::table'}.' ('.join(',',@{$class.'::fields'}).')');
+
+    # gör ev index
+    my %indexes=%{$class.'::indexes'};
+    for my $name (keys %indexes){
+	$db->query('create index if not exists '.$name.' on '.${$class.'::table'}.' ('.join(',',@{$indexes{$name}}).')');
+	
+    };
 };
 
 sub get_fields($class){

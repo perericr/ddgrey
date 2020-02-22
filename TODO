@@ -5,6 +5,9 @@ prio 1
 ? säkerställ fortsatt körning vid fel
 ? Exim4: tolka logg-datum i rätt tidszon
 
+* DBD::SQLite::st execute failed: unable to open database file at /usr/lib/site_perl/DDgrey/DB/SQLite.pm line 79, <$fh> line 26. at /usr/lib/site_perl/DDgrey/DBModel.pm line 60 at /usr/lib/site_perl/DDgrey/DBModel.pm line 60
+
+
 prio 2
 ======
 * Server: ta bort eget namn från peer (gör det möjligt ha samma dgrey.conf)
@@ -31,3 +34,5 @@ X koll av argument till ny rapport
 X ta bort push och bara ha pull?
 ? byt protkoll från \n till \r\n
 ? hantera manuell spam-rapportering
+
+
