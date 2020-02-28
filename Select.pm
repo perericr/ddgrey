@@ -1,5 +1,5 @@
 # ---- class Select ----
-# class för register över objekt som lyssnar på filhandtag
+# listener to file handles
 
 package DDgrey::Select;
 
@@ -11,11 +11,11 @@ use IO::Select;
 use List::MoreUtils qw(uniq);
 use DDgrey::Perl6::Parameters;
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class){
-    # retur : nytt objekt
-    # effekt: kan sätta undantag
+    # return: new object
+    # effect: may raise exception
 
     my $self={};
     $self->{closing}=0;
@@ -25,27 +25,27 @@ sub new($class){
     $self->{write_select} or main::error("can't start select ($!)");
     $self->{read_more}={};
 
-    # maximal väntetid (kan ändras av kortare intervall)
+    # max waiting time (can be shorter by specific instructions)
     $self->{sleep}=5;
 
     return bless($self,$class);
 };
 
-# ---- metoder för registrering ----
+# ---- methods for registrering ----
 
 sub register_read($self,$fh,$f){
-    # effekt: registerar fh i select och f för att hantera läsning från fh
+    # effect: registers fh with select, using f for handling read from fh
 
     $self->{select}->add($fh);
     $self->{read_handler}->{$fh}=$f;
 };
 
 sub register_read_and_exception($self,$fh,$f,$timeout){
-    # effekt: registerar fh i select och
-    # f för att hantera läsning och undantag från fh
-    # ev undantag om inget lästs efter timeout
+    # effect: registers fh with select, using
+    #         f for reading and exceptions from fh
+    #         may raise exception if timeout passed
 
-    # timeout för läsning
+    # read timeout
     my $t=$self->register_timer($timeout // 60,sub{&$f($fh)},$fh);
     
     $self->register_read($fh,sub{
@@ -57,8 +57,8 @@ sub register_read_and_exception($self,$fh,$f,$timeout){
 };
 
 sub register_line($self,$fh,$f){
-    # effekt: registerar fh i select och f för att hantera rad läst från fh
-    # pre   : fh är satt icke-blockerande
+    # effect: registers fh with select, using f for handling lines read from fh
+    # pre   : fh is set to non-blocking
 
     $self->{select}->add($fh);
     $self->{read_handler}->{$fh}=sub{
@@ -67,26 +67,26 @@ sub register_line($self,$fh,$f){
 	};
 
 	if(defined(my $line=$fh->getline())){
-	    # markera att fler rader kan finnas
+	    # # mark possibly more lines
 	    $self->{read_more}->{$fh}=$fh;
-	    # kör
+	    # run
 	    &$f($line);
 	}
 	else{
-	    # ta bort markering att fler rader finns
+	    # remove mark for possibly more lines
 	    delete $self->{read_more}->{$fh};
 	};
     };
 };
 
 sub register_exception($self,$fh,$f){
-    # effekt: registerar fh i select och f för att hantera undantag från fh
+    # effect: registers fh with select, using f for handling exceptions from fh
     $self->{exception_handler}->{$fh}=$f;
 };
 
 sub unregister($self,$fh;$r,$w){
-    # effekt: avregistrera fh, som standard från alla register
-    #         om r==1 avregistreras från läsning, om w==1 från skrivning
+    # effect: unregister fh, by default from all registers
+    #         if r==1 from reading, if w==1 from writing
    
     if($r//1){
 	$self->{select}->remove($fh);
@@ -105,8 +105,10 @@ sub unregister($self,$fh;$r,$w){
 };
 
 sub register_timer($self,$timeout,$f;$fh){
-    # effekt: registerar funktion f att köra om timeout sekunder
-    #         registrera som tillhörande fh om sådan given
+    # return: timer object
+    # effect: registers function f to run in timeout seconds
+    #         registers self as belonging to fh if given
+
     my $t={
 	function=>$f,
 	timeout=>$timeout,
@@ -120,9 +122,10 @@ sub register_timer($self,$timeout,$f;$fh){
 };
 
 sub register_interval($self,$interval,$f){
-    # effekt: registerar funktion f att köra var f sekund
+    # effect: registers function f to run each interval seconds
+    # return: interval object
 
-    # anger att körning börjar efter väntetid
+    # create post, mark to make first run after interval
     my $i={
 	function=>$f,
 	called=>time(),
@@ -133,6 +136,8 @@ sub register_interval($self,$interval,$f){
 };
 
 sub unregister_timer($self,$t){
+    # effect: unregisters timer t
+    
     foreach my $i (0 .. $#{$self->{timer}}){
        if(defined($self->{timer}->[$i]) and $t==$self->{timer}->[$i]){
 	   delete($self->{timer}->[$i]);
@@ -141,39 +146,42 @@ sub unregister_timer($self,$t){
 };
 
 sub unregister_interval($self,$t){
+    # effect: unregisters interval t
+    
     foreach my $i (0 .. $#{$self->{interval}}){
 	$t==$self->{interval}->[$i] and delete($self->{interval}->[$i]);
     };
 };
 
-# ---- metoder för körning ----
+# ---- methods for running ----
 
 sub sleep($self){
-    # retur: hur länge vänta i select
+    # return: number of seconds to wait in select until timeout
 
     my $sleep=$self->{sleep};
 
-    # kolla interval
+    # check intervals
     foreach my $i (0 .. $#{$self->{interval}}){
 	defined(my $interval=$self->{interval}->[$i]) or next;
 	$interval->{interval} < $sleep and $sleep=$interval->{interval};
     };
 
-    # kolla timer
+    # check timers
     foreach my $i (0 .. $#{$self->{timer}}){
 	defined(my $timer=$self->{timer}->[$i]) or next;
 	my $s=$timer->{time}-time();
 	$s < $sleep and $sleep=$s;
     };
 
-    # minst 0
+    # at least 0
     $sleep < 0 and $sleep=0;
 
     return $sleep;
 };
 
 sub run($self){
-    # effekt: väntar på filhandtagsaktivitet och skickar till lyssnare
+    # effect: waits for all file handle activity (or timeout)
+    #         and runs registered event handlers until closing
 
     while(!$self->{closing}){
 	$self->run_once(undef);
@@ -181,50 +189,51 @@ sub run($self){
 };
 
 sub run_once($self,$sleep){
+    # effect: waits for one file handle activity (or timeout)
+    #         and runs registered event handler
 
     $sleep //= (keys %{$self->{read_more}} ? 0 : $self->sleep());
     $main::debug > 2 and main::lm("running select sleep:$sleep handles:".(scalar $self->{select}->handles()));
     
     my($read,$write,$exception)=IO::Select->select($self->{select},$self->{write_select},$self->{select},$sleep);
     
-    # handtag med undantag
+    # file handles with exceptions
     foreach my $fh (@$exception){
 	$self->handle_exception($fh);
     };
     
-    # läsbara handtag
-    # warn Dumper([$self->{select}->handles()],$self->{read_more});
+    # readable file handles
     foreach my $fh (uniq(@$read,keys %{$self->{read_more}})){
 	defined(my $f=$self->{read_handler}->{$fh}) or next;
 	&$f($fh);
     };
     
-    # kolla timer
+    # check timers
     foreach my $i (0 .. $#{$self->{timer}}){
 	defined(my $timer=$self->{timer}->[$i]) or next;
 	if($timer->{time} <= time()){
+	    # run and remove timer
 	    &{$timer->{function}}();
-	    # tar bort timer
 	    delete $self->{timer}->[$i];
 	};
     };
     
-    # kolla intervall
+    # check intervals
     foreach my $interval (@{$self->{interval}}){
 	if($interval->{called}+$interval->{interval} < time()){
+	    # run and update interval
 	    &{$interval->{function}}();
-	    # uppdatera senast-anropad
 	    $interval->{called}=time();
 	};
     };
     
-    # handtag som kan skrivas till
+    # handles that may be written to
     $self->run_write($write);
 };
 
 sub write($self,$fh,$line;$next){
-    # effekt: skriv line till fh (eller lägg i buffer)
-    #         kör next när skickat
+    # effect: writes line to fh (or add tu buffer)
+    #         runs next when sent
     
     $self->{write_select}->exists($fh) or $self->{write_select}->add($fh);
     $self->{write_buffer}->{$fh} //= [];
@@ -234,17 +243,17 @@ sub write($self,$fh,$line;$next){
 };
 
 sub run_write($self,$write){
-    # effekt: försök skriva från write_buffer till filhandtag i write
-    #         om write_buffer innehåller funktioner körs de
+    # effect: attempts to write from buffers to file handles in write
+    #         if write buffer contains a function, it will be run instead
     
     for my $fh (@$write){
       CHUNK:while(defined(my $f=shift(@{$self->{write_buffer}->{$fh}}))){
 	    if(ref($f)){
-		# kör om det är funktion
+		# run if function
 		&$f();
 	    }
 	    else{
-		# annars försök skriva
+		# otherwise, write
 		my $sent=$fh->connected() ? $fh->send($f) : undef;
 		if(defined($sent)){
 		    if($sent == length($f)){
@@ -264,7 +273,7 @@ sub run_write($self,$write){
 	    };	    
 	};
 
-	# ta bort om inget mer fanns att skriva
+	# delete buffer if nothing more to write
 	if(!@{$self->{write_buffer}->{$fh}}){
 	    delete $self->{write_buffer}->{$fh};
 	    $self->{write_select}->remove($fh);
@@ -273,7 +282,7 @@ sub run_write($self,$write){
 };
 
 sub load($self){
-    # effekt: belastning 0=låg 1=hög 2=mycket hög
+    # return: internal system load, 0=low 2=very high
 
     my $count=scalar $self->{select}->handles();
     $count > 100 and return 2;
@@ -282,25 +291,26 @@ sub load($self){
 };
 
 sub handle_exception($self,$fh){
-    # effekt: hanterar undantag (ofta stängd förbindelse) på fh
+    # effect: handles exception (often closed connection) on fh
 
     if(defined($self->{exception_handler}->{$fh})){
 	return &{$self->{exception_handler}->{$fh}}($fh);
     }
     else{
-	# avregistrera
+	# otherwise, unregister
 	$main::debug and main::lm("default closing of $fh");
         $self->unregister($fh);
     };
 };
 
 sub exit($self){
-    # effekt: avslutar loop
+    # effect: marks loop for closing
+    
     $self->{closing}=1;
 };
 
 sub close($self){
-    # effekt: stänger select och skickar undantag till registrerade fh
+    # effect: closes select, send exception to registered file handles
     
     foreach my $fh ($self->{select}->handles()){
 	$self->handle_exception($fh);

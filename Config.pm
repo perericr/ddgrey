@@ -1,5 +1,5 @@
 # ---- klass Config ----
-# klass för konfiguration
+# configuration
 
 package DDgrey::Config;
 
@@ -11,16 +11,17 @@ use DDgrey::Perl6::Parameters;
 use Text::Balanced;
 
 sub new($class,$name;$opt){
-    # retur : ny konfiguration från name, med ev tolkningsanvisningar opt
-    # effekt: sätter undantag om fel i konfiguration
+    # return: new configuration from name, possible parsing instructions in opt
+    # effect: may raise exception if error in configuration
 
     my $file=($main::dir // "_CONFIGDIR_")."/$name";
     open FILE,$file or main::error("can't open $file ($!)");
     my $rows=[<FILE>];
     close FILE;
 
-    # -- instruktioner för parsing --
-    # lista över kommandon
+    # -- instructions for parsing --
+    
+    # list of commands
     my $allowed={};
     if(defined($opt->{commands})){
 	foreach my $key (@{$opt->{commands}}){
@@ -28,7 +29,7 @@ sub new($class,$name;$opt){
 	};
     };
     
-    # lista över kommandon där flera kan finnas av samma sort
+    # list of commands, several of same allowed
     my $multiple={};
     if(defined($opt->{multiple})){
 	foreach my $key (@{$opt->{multiple}}){
@@ -36,7 +37,7 @@ sub new($class,$name;$opt){
 	    $allowed->{$key}=1;
 	};
     };
-    # lista över komplexa kommandon
+    # lista of complex commands
     my $complex={};
     if(defined($opt->{complex})){
 	foreach my $key (@{$opt->{complex}}){
@@ -48,29 +49,29 @@ sub new($class,$name;$opt){
     # -- parsing --
 
     my $commands=[];
-    my $count=0;  # radnummer
+    my $count=0;  # row number
     
     foreach my $row (@$rows){
 	$count++;
 
-	# tolka rad
+	# parse row
 	my $line=row_lex($row,$count,1) or next;
 	
-	# tolka argument
+	# parse arguments
 	if($complex->{$line->{symbols}->[0]}){
-	    # komplex rad
+	    # complex row
 	    my $item=line_parse($line);
 	    my $key=shift(@{$item->{arg}});
-	    # slå ihop med merge
+	    # merge
 	    if(defined($opt->{merge}->{$key})){
-		# behåll ursprunglig som egenskap
+		# keep original as property
 		$item->{'command'}=$key;
 		$key=$opt->{merge}->{$key};
 	    };
 	    push(@$commands,[$key,$item]);
 	}
 	else{
-	    # enkel rad
+	    # basic row
 	    my $key=shift(@{$line->{symbols}});
 	    grep {$_ eq '='} @{$line->{symbols}} and main::error("key-value data not allowed for $key on line $line->{nr}");
 	    for my $symbol (@{$line->{symbols}}){
@@ -84,13 +85,13 @@ sub new($class,$name;$opt){
     foreach my $command (@$commands){
 	my($key,$value)=@$command;
 	defined($allowed->{$key}) or main::error("unknown key \"$key\" in $name"); 
-	# lägg till rad
+	# add row
 	if($multiple->{$key}){
-	    # lägg till array om multiple
+	    # add array if multiple
 	    push @{$self->{$key}},$value;
 	}
 	else{
-	    # ersätt i övriga fall
+	    # otherwise, replace
 	    $self->{$key}=$value;
 	};
     };
@@ -98,16 +99,16 @@ sub new($class,$name;$opt){
     return bless($self,$class);
 };
 
-# ---- funktioner ----
+# ---- functions ----
 
 sub row_lex($row,$count,$allow_assign){
-    # retur : row uppdelad i symboler, med id count (för felmeddelanden)
-    # effekt: kan sätta undantag
+    # return: row split in symbols, with id count (for error messages)
+    # effect: may raise exception
 
-    # skippa tomma rader
+    # skip empty rows
     $row=~/^\s*(?:$|\#)/ and return undef;
 
-    # ta bort blankt på slutet
+    # remove trailing space
     $row=~s/\s*$//;
     
     my $symbols=[];
@@ -144,14 +145,14 @@ sub row_lex($row,$count,$allow_assign){
 };
 
 sub line_parse($line){
-    # retur : tolkning av line till argument och nyckel-värdepar
-    # effekt: kan sätta undantag
+    # return: parsing of line to arguments and key-value pairs
+    # effect: may raise exception
 
     my $item={};
     my $count=$line->{nr};
     my $symbols=$line->{symbols};
 
-    # argument
+    # arguments
     while(scalar @$symbols){
 	if(defined($symbols->[1]) and $symbols->[1] eq '='){
 	    if(!defined($symbols->[2])){
@@ -168,5 +169,5 @@ sub line_parse($line){
     return $item;
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

@@ -1,5 +1,5 @@
 # ---- class SyncClientConnection ----
-# class for ddgrey client connection
+# ddgrey client connection
 
 package DDgrey::SyncClientConnection;
 
@@ -17,22 +17,23 @@ use DDgrey::RemoteServer;
 
 use parent qw(DDgrey::ClientConnection);
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class,$server,$fh,$permission){
-    # retur:  ny klientanslutning av class kring fh med rättighet permission
-    # effekt: kan sätta undantag, registrerar hos server och select
+    # return: new client connection of class to server, fh and permission
+    # effect: registers with server and select
+    #         may raise exception
 
     my $self=$class->SUPER::new($server,$fh);
     $self->{permission}=$permission;
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub handle_command($self,$item){
-    # retur / effekt: försök utföra kommando beskrivet i item
-
+    # return/effect: execution of command described in item
+    
     my $command=shift(@{$item->{arg}});
     if(!defined($command)){
 	return "500 no command received\r\n";
@@ -55,7 +56,7 @@ sub handle_command($self,$item){
 
     # -- list --
     if($command eq 'list'){
-	# kolla rättighet
+	# check permission
 	$self->{permission}->{read} or return "500 permission denied\r\n";
 
 	my $arg=($item->{arg}->[0] or 0);
@@ -64,7 +65,7 @@ sub handle_command($self,$item){
 	$self->send("300 document following\r\n");
 	for my $l (@list){
 	    $self->send($l->{id}."\t".$l->{origin}."\t".$l->{origin_id}."\t".$l->{stored}."\r\n");
-	    # om många skickas på samma gång
+	    # if several sent at the same time
 	    $main::select->run_write([$self->{fh}]);
 	};
 	return ".\r\n";
@@ -72,7 +73,7 @@ sub handle_command($self,$item){
 
     # -- get --
     if($command eq 'get'){
-	# kolla rättighet
+	# check permission
 	$self->{permission}->{read} or return "500 permission denied\r\n";
 
 	my $arg=$item->{arg}->[0];
@@ -90,7 +91,7 @@ sub handle_command($self,$item){
 
     # -- subscribe --
     if($command eq 'subscribe'){ 
-    	# kolla rättighet
+    	# check permission
 	$self->{permission}->{read} or return "500 permission denied\r\n";
 
 	my $subscription=$main::dispatcher->register_subscriber(sub{$self->send_report(@_)});
@@ -98,7 +99,7 @@ sub handle_command($self,$item){
 	$self->{subscription}=$subscription;
 	$self->{data_handler}=sub{$self->handle_subscribe()};
 	
-	# ev argument - rapportera anslutningar från tidpunkt tidigare än nu
+	# if argument, start with reports from earlier than now
 	my $arg=($item->{arg}->[0]);
 	my @list=();
 	if(defined($arg)){
@@ -106,12 +107,12 @@ sub handle_command($self,$item){
 	    @list=DDgrey::Report->list($arg);
 	};
 
-	# skicka start och ev färdiga dokument
+	# send start and possibly existing reports
 	$self->send("302 document following (interrupt with single dot)\r\n");
 	foreach my $l (@list){
 	    my $report=DDgrey::Report->get($l->{id});
 	    $self->send_report($report);
-	    # om många skickas på samma gång
+	    # if several sent at the same time
 	    $main::select->run_write([$self->{fh}]);
 	};
 	return;
@@ -119,20 +120,20 @@ sub handle_command($self,$item){
     
     # -- report --
     if($command eq 'report'){
-	# kolla rättighet
+	# check permission
 	$self->{permission}->{write} or return "500 permission denied\n";
 	$self->{data_handler}=sub{$self->handle_report()};
 	return "301 go ahead\n";
     };
 
-    # ---- övriva kommandon ----
+    # ---- other commands ----
     return "500 unknown command\r\n";
 };
 
 sub handle_subscribe($self){
-    # retur : statusrad
-    # effekt: avslutar prenumeration
-    # pre   : får bara anropas när prenumeration är aktiv
+    # return: status line
+    # effect: handles subscription
+    # pre   : subscription is active
 
     $main::dispatcher->unregister_subscriber($self->{subscription});
     $self->{data} and return "500 no text accepted during subscribe\r\n";
@@ -140,17 +141,17 @@ sub handle_subscribe($self){
 };
 
 sub send_report($self,$report){
-    # effekt: skicka report till klient
+    # effect: sends report to client
 
     $main::debug > 1 and main::lm("sending report ".$report->unicode(),$self->service());
     $self->send($report->as_text());
-    # extra blankrad betyder att denna rapport är klar
+    # extra blank row indicates end of report
     $self->send("\r\n");
 };
 
 sub handle_report($self){
-    # retur : statusrad
-    # effekt: ta hand om rapport i self->data
+    # return: status line
+    # effect: handles report stored in self->data
     
     my $report=eval{DDgrey::Report->from_text($self->{data})};
     if($@ or !defined($report)){

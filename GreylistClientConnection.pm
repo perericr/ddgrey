@@ -1,5 +1,5 @@
- # ---- klass GreylistClientConnection ----
-# klass för klientanslutning till greylist-server
+ # ---- class GreylistClientConnection ----
+# client connection to greylist server
 
 package DDgrey::GreylistClientConnection;
 
@@ -17,10 +17,10 @@ use DDgrey::Run qw(ensure_dir);
 
 use parent qw(DDgrey::ClientConnection);
 
-# ---- metoder ----
+# ---- methods ----
 
 sub handle_command($self,$item){
-    # retur / effekt: försök utföra kommando beskrivet i item
+    # retur / effekt: attempt to execute command described in item
 
     my $command=shift(@{$item->{arg}});
     if(!defined($command)){
@@ -70,7 +70,7 @@ sub handle_command($self,$item){
 	$self->send("250 closing connection\r\n",sub{$self->quit()});
     };
 
-    # ---- övriva kommandon ----
+    # ---- other comands ----
     return "500 unknown command\r\n";
 };
 

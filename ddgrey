@@ -98,7 +98,7 @@ our $store=DDgrey::DBStore->init();
 
 # ---- main ----
 
-# gör where-satser för show
+# make where-clauses for show command
 my $where_report=[];
 my $where=[];
 my $args_report=[];
@@ -128,12 +128,12 @@ if(defined($host)){
     };
 };
 
-# raderar först
+# first removes
 if($remove){
     remove($where,$args);
 };
 
-# beräkna om önskat och kör sen rapport
+# recalculate if asked for, then report
 if($calc){
     calc_report($where_report,$args_report,$where,$args);
 }
@@ -170,8 +170,8 @@ sub calc_report($where_report,$args_report,$where,$args){
 };
 
 sub calc_report_done($where,$args,$ip,$done){
-    # effekt: kör report med  where och args om alla ip i done
-    #         är markerade som klara. markerar ip som klar
+    # effekt: runs report with where och args if all ip in done
+    #         are marked as done. marks ip as done
 
     $done->{$ip}=1;
     if(not grep {!defined($done->{$_})} keys %$done){

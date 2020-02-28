@@ -1,5 +1,5 @@
- # ---- klass GreylistClientConnection ----
-# basklass för klientanslutning till server via TCP eller UNIX-socket
+ # ---- class GreylistClientConnection ----
+# base class for client connection to this server via TCP or UNIX socket
 
 package DDgrey::ClientConnection;
 
@@ -13,11 +13,12 @@ use Socket;
 use DDgrey::Config;
 use DDgrey::Policy;
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class,$server,$fh){
-    # retur:  ny klientanslutning av class kring fh
-    # effekt: kan sätta undantag, registrerar hos server och select
+    # return: new client connection of class using fh
+    # effect: registers with server and select
+    #         may raise exception
 
     my $self={};
     bless($self,$class);
@@ -26,12 +27,12 @@ sub new($class,$server,$fh){
     $self->{server}=$server;
     $self->{service}=$server->service();
     $self->{closing}=0;
-    $self->{pending_send}=0; # antal uppdrag på gång som ska sända data
+    $self->{pending_send}=0; # number of concurrent tasks resulting in data
 
-    # sätt client_id för att spara
+    # set client id to save
     $self->{client_id}=$self->client_id();
 
-    # registrera
+    # register
     $main::select->register_line($self->{fh},sub{$self->receive_line(@_)});
     $main::select->register_exception($self->{fh},sub{
 	$self->handle_exception();
@@ -44,52 +45,52 @@ sub new($class,$server,$fh){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: name of subsystem (for logging)
     return $self->{service} // 'unknown service';
 };
 
 sub client_id($self){
-    # retur: lämpligt id för anslutning
+    # return: suitable id for connection
 
-    # prova cache
+    # tried cached id
     defined($self->{client_id}) and return $self->{client_id};
 
-    # gör nytt
+    # otherwise, return new
     if($self->{fh}->can('peerhost')){
-	# TCP
+	# use peer host if TCP
 	return eval{
 	    $self->{fh}->peerhost();
 	} // 'closed socket';
     }
     else{
-	# något annat, troligen UNIX
+	# something else, probably UNIX socket
 	return $self->{fh}=~s/.*?(0x[\dabcdef]+).*/$1/r;
     };
 };
 
 sub receive_line($self,$line){
-    # effekt: behandlar rad line från klient
+    # effect: handles line from client
 
     $main::debug > 2 and main::lm("got ".$line=~s/[\r\n]+$//r,$self->service());
     if(defined($self->{data_handler})){
-	# hantera data
+	# handle data
 	if($line=~/^\.[\r\n]+$/){
-	    # kör hanterare av data
+	    # run data handler
 	    $self->send(&{$self->{data_handler}}());
-	    # slut på data
+	    # data used, start over
 	    delete($self->{data_handler});
 	}
 	else{
-	    # vanlig datarad - ta bort ev inledande punkt
+	    # ordinary data line
 	    $line=~s/^\.//;
 	    $self->{data}.=$line;
 	};
     }
     else{
-	# vanligt kommando
+	# ordinary command
 	my $item=eval{
 	    my $l=DDgrey::Config::row_lex($line,0,0);
 	    defined($l) or return undef;
@@ -102,20 +103,21 @@ sub receive_line($self,$line){
 	};
 	defined($item) or return undef;
 	
-	# kör kommando
+	# run command
 	my $r=$self->handle_command($item);
 	defined($r) and $self->send($r);
     };
 };
 
 sub quit($self){
-    # effekt: avregistrera där registrerad och stäng
+    # effect: deregisters where registered and close, with logging
+    
     $main::debug and main::lm("closing connection on client request from ".$self->client_id(),$self->service());
     $self->close();
 };
 
 sub close($self){
-    # effekt: avregistrera där registrerad och stäng
+    # effect: deregisters where registered and closes
 
     if(!defined($self->{server})){
 	return;
@@ -126,12 +128,13 @@ sub close($self){
     $self->{fh}->shutdown(2);
     $self->{fh}->close();
     $main::debug and main::lm("closed connection from ".$self->client_id(),$self->service());
-    # för att undvika cirkelreferenser
+    # delete server pointer to avoid circular references
     delete($self->{server});
 };
 
 sub handle_exception($self){
-    # effekt: hantera undantag från select
+    # effect: handles exception from select
+    
     if($self->{fh}->connected() and $self->{fh}->eof()){
 	if($self->{pending_send} > 0){
 	    $main::debug and main::lm("connection closed from ".$self->client_id().", waiting for data",$self->service());
@@ -150,7 +153,8 @@ sub handle_exception($self){
 };
 
 sub send($self,$line;$next){
-    # effekt: skickar line till klient, kör next när skickat
+    # effect: sends line to client, run next when sent
+    
     $main::debug > 2 and main::lm("sending ".$line=~s/[\r\n]+$//r,$self->service());
     $main::select->write($self->{fh},$line,$next);
     if($self->{closing} and $self->{pending_send}==0){

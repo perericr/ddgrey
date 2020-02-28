@@ -1,5 +1,5 @@
-# ---- klass Client ----
-# basklass för anslutning till server via TCP eller UNIX-socket
+# ---- class Client ----
+# base class for connection to server over TCP or UNIX socket
 
 package DDgrey::Client;
 
@@ -12,18 +12,18 @@ use IO::Socket::UNIX;
 use Data::Dumper; # DEBUG
 use DDgrey::Perl6::Parameters;
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class,$config;$retry){
-    # retur: ny klient av class ansluten till config argument 0
-    #        retry är hur ofta försök att ansöka ska göras
+    # return: new client of class connected to config argument 0
+    #        retry is interval in s between retries
     
     $retry //= ($main::debug ? 5 : 60);
     
     my $self={};
     bless($self,$class);
     
-    # gör UNIX- eller TCP-anslutning
+    # make UNIX or TCP connection
     defined($config->{arg}->[0]) or main::error("no socket/host specified");
     if($config->{arg}->[0]=~/^\//){
 	$self->{socket}=$config->{arg}->[0]; 
@@ -33,7 +33,7 @@ sub new($class,$config;$retry){
 	$self->{port}=($config->{arg}->[1] or ($< ? 1722 : 722));
     };
 
-    # startar periodisk kontroll för att hålla förbindelse uppe
+    # start periodic task to ensure connected
     $main::select->register_interval($retry,sub{
 	$self->ensure_connected();
     });
@@ -42,15 +42,15 @@ sub new($class,$config;$retry){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub log_connect{
-    # retur: huruvida logga anslutning
+    # return: whether connect should be logged
     return 1;
 }
 
 sub helo($self){
-    # effekt: säger helo till server
+    # effect: sends helo to server
 
     $self->ensure_connected() or return undef;
     $self->send("helo ".$main::hostname."\r\n");
@@ -58,13 +58,13 @@ sub helo($self){
 };
 
 sub handle_helo($self,$line){
-    # effekt: startar helo-mottagning om line verkar OK
-
+    # effect: starts reception if line indicates helo success
+    
     if($line=~/^200\D.*I am ([\w\.\-]+)/i){
 	$self->{peername}=$1;
 	delete($self->{line_handler});
 
-	# kod att köra efter helo
+	# next to do after helo
 	if(defined($self->{on_helo})){
 	    &{$self->{on_helo}}();
 	}
@@ -79,20 +79,20 @@ sub handle_helo($self,$line){
 };
 
 sub connected($self){
-    # retur: huruvida fh finns och är anslutet
+    # return: whether fh exists and is connected
     return (defined($self->{fh}) and $self->{fh}->connected());
 };
 
 sub ensure_connected($self){
-    # effekt: ser till att försöker ansluta fh till socket / host och port
-    # retur : huruvida förbindelse är uppe
+    # return: whether connected
+    # effect: tries to ensure fh is connected to socket / host and port
 
-    # kolla om redan uppe
+    # check if connected
     if($self->connected()){
 	return 1;
     };
 
-    # gör ny anslutning
+    # make new connection
     $self->close_fh();
 
     if(defined($self->{socket})){
@@ -103,7 +103,7 @@ sub ensure_connected($self){
     };
 
     
-    # returnera huruvida lyckat
+    # log connected status
     my $status=$self->connected();
     if($status){
 	($self->log_connect() or $main::debug) and main::lm('connected to server '.($self->{socket} // $self->{host}),$self->service());
@@ -113,7 +113,7 @@ sub ensure_connected($self){
         $self->close_fh();
     };
 
-    # sätter i ordning ny förbindelse
+    #  set up parameters for new connection
     if(defined($self->{fh})){
 	$self->{fh}->autoflush(0);
 	$self->{fh}->blocking(0);
@@ -125,7 +125,7 @@ sub ensure_connected($self){
             $self->close_fh();
 	});
 
-	# skickar helo över ny förbindelse och kör ev on_helo
+	# send helo and possibly run on_helo
 	$self->helo();
     };
 
@@ -133,7 +133,7 @@ sub ensure_connected($self){
 };
 
 sub close_fh($self){
-    # effekt: stänger eget fh
+    # effect: closes own fh
 
     if(defined($self->{fh})){
 	($self->log_connect() or $main::debug) and main::lm("connection closed to server ".($self->{socket} // $self->{host}),$self->service());
@@ -145,9 +145,9 @@ sub close_fh($self){
 };
 
 sub close($self){
-    # effekt: stänger klientanslutning inklusive fh
-
-    # skicka quit om i default-läge och ansluten
+    # effect: closes client connection
+    
+    # send quit if connected and at prompt
     if(!(defined($self->{data_handler}) or !defined($self->{line_handler}))){
 	if($self->connected()){
 	    $self->send("quit\r\n");
@@ -158,29 +158,29 @@ sub close($self){
 };
 
 sub send($self,$line){
-    # effekt: skickar line till klient
+    # effect: sends line to client
 
     $main::debug > 2 and main::lm("sending ".$line=~s/[\r\n]+$//r,$self->service());
     $main::select->write($self->{fh},$line);
 };
 
 sub receive_line($self,$line){
-    # effekt: behandlar rad line från klient
+    # effect: handles line from client
 
     $main::debug > 2 and main::lm("got ".$line=~s/[\r\n]+$//r,$self->service());
     
-    # hantera data
+    # handle data
     if(defined($self->{data_handler})){
 	if($line=~/^\.$/){
-	    # kör hanterare av data
+	    # run data handler
 	    &{$self->{data_handler}}();
-	    # slut på data
+	    # end of data
 	    delete($self->{data_handler});
 	    delete($self->{data});
 	    $self->check_on_prompt();
 	}
 	else{
-	    # vanlig datarad - ta bort ev inledande punkt
+	    # ordinary data line
 	    $line=~s/^\.//;
 	    $self->{data}.=$line;
 	};
@@ -188,30 +188,31 @@ sub receive_line($self,$line){
 	return 1;
     };
 
-    # hantera rad
+    # handle line
     if(defined($self->{line_handler})){
 	&{$self->{line_handler}}($line);
 	$self->check_on_prompt();
 	return 1;
     };
     
-    # default-hanterare
+    # default handler - will log unexpected messages
     chomp $line;
     main::lm("unexpected line from server ($line)",$self->service(),"warning");
 };
 
-# -- kö med kommandon att utföra --
+# -- queue of commands to run --
 
 sub schedule($self,$f){
-    # effekt: lägger till i att-göra listan
-    #         kör f om det kan göras omedelbart
+    # effect: adds f to TODO-list
+    #         runs f if possible
 
     push(@{$self->{todo}},$f);
     $self->check_on_prompt();
 };
 
 sub check_on_prompt($self){
-    # effekt: kör ev funktion vid promten om sådan registrerad
+    # effect: runs possible command from TODO 
+    
     if($self->connected()){
 	if(!defined($self->{data_handler}) and !defined($self->{line_handler})){
 	    if(defined(my $f=shift(@{$self->{todo}}))){
@@ -221,5 +222,5 @@ sub check_on_prompt($self){
     };
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

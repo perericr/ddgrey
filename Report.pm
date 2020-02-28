@@ -1,5 +1,5 @@
 # ---- class Report ----
-# class för rapport
+# repport
 
 package DDgrey::Report;
 
@@ -13,18 +13,18 @@ use DDgrey::DBStore qw($db);
 
 use parent qw(DDgrey::DBModel);
 
-# värden på event:
-# check      koll gjord av MTA
-# disconnect värd avbyt förbindelse mot protokoll
-# hard_trap  e-post till hård spamfälla
-# soft_trap  e-post till mjuk spamfälla
-# manual     manuell spamrapport
-# unknown    försök att skicka till okänd mottagare   
-# relay      försök att använda som relä
-# spam       spam mottaget
-# ok         levererat av MTA till mottagare    
+# values for på event:
+# check      check done by MTB (used for individual per-triplet greylisting)
+# disconnect host closed connection to MTA
+# hard_trap  email sent to hard spam trap
+# soft_trap  email sent to soft spam trap
+# manual     manual spam report
+# unknown    attempt at sending to unknown recipient   
+# relay      attempt at relay usage
+# spam       spam received
+# ok         mail delivered by MTA to recipient    
 
-# beskrivning
+# description
 our $table='report';
 our @fields=('id integer primary key autoincrement','origin text','origin_id integer','reporter text','time integer','stored integer','ip text','domain text','event text','e_from text','e_to text','mta_id text');
 our %indexes=(
@@ -35,62 +35,69 @@ our %indexes=(
     'domain'=>['domain','event','time'],
     );
 
-# ---- klassmetoder för översikt (ger ej objekt) ----
+# ---- class methods for overview (does not return instance) ----
 
 sub list($class,$from){
-    # retur: översikt över rapport registrerade från och med from (timestamp)
-    #        ej som rapport-objekt
+    # return: overview of reports since from (timestamp)
+    #         format att raw data, not class instances
 
     return $db->query_all("select id,origin,origin_id,stored from report where stored >= ? order by stored asc",$from);
 };
 
 sub count_grouped($class,$ip,$event,$fdate,$tdate){
-    # retur: antal träffar av event för ip från tid, grupperade på e_from, e_to
+    # return: number of hits for event from ip between fdate-tdate
+    #         grouped by e_from and e_to
+    
     return $db->query_first_one('select count(*) from (select * from report where ip=? and event=? and time >= ? and time <= ? group by e_from,e_to)',$ip,$event,$fdate,$tdate);
 };
 
 sub domain_count($class,$domain,$event,$fdate,$tdate){
-    # retur: antal träffar av event för domain mellan fdate och tdate
+    # return: number of hits for event from domain between fdate-tdate
+
     return $db->query_first_one('select count(id) from report where domain=? and event=? and time >= ? and time <= ?',$domain,$event,$fdate,$tdate);
 };
 
 sub domain_check($class,$domain,$from,$to,$fdate,$tdate){
-    # retur: huruvida check gjort från domain, from, to mellan fdate och tdate
+    # return: whether check has been done for domain and email from,to
+    #         between fdate-tdate
+    
     my $self=$db->query_first('select * from report where domain=? and event=? and e_from=? and e_to=? and time >= ? and time <= ?',$domain,'check',$from,$to,$fdate,$tdate);
     $self or return undef;
     bless($self,$class);
     return $self;
 };
 
-# ---- klassmetoder för sökning (ger Report-objekt) ----
+# ---- class methods for searching (returns class instances) ----
 
 sub find($class,$ip,$event,$fdate,$tdate){
-    # retur: ev träffar av event för ip från tid
+    # return: possible hits for event from IP between fdate-tdate
+
     return map {
 	bless($_,$class);
     } $db->query_all('select * from report where ip=? and event=? and time >= ? and time <= ?',$ip,$event,$fdate,$tdate);
 };
 
 sub find_ok($class,$ip,$mta_id){
-    # retur: ev träffar av event för ip och mta_id
+    # return: possible hits for 'OK' event from IP, mtda_id between fdate-tdate
+
     return map {
 	bless($_,$class);
     } $db->query_all('select * from report where event=? and ip=? and mta_id=?','ok',$ip,$mta_id);
 };
 
 sub get($class,$id){
-    # retur: ev rapport med lokalt id (form "id")
+    # return: possible report with local id id
 
     my $data=$db->query_first("select * from report where id=?",$id);
     $data or return undef;
     return DDgrey::Report->new($data);
 };
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class,$proto){
-    # retur: ny rapport från proto
-    # effekt: kan sätta undantag
+    # return: new report from proto
+    # effect: may raise exception
 
     my $self=$proto;
     defined($self->{time}) or $self->{time}=time();
@@ -99,8 +106,8 @@ sub new($class,$proto){
 };
 
 sub from_text($class,$text){
-    # retur : ny rapport från text (utan id-fält)
-    # effekt: kan sätta undantag
+    # return: new report from text (without id field)
+    # effect: may raise exception
 
         my $keys={
 	'origin'=>'^[\w\-\.]+$',
@@ -134,7 +141,7 @@ sub from_text($class,$text){
 	'stored'=>1,
     };
 
-    # tolka
+    # interpret
     my $self={};
     my @rows=split(/[\r\n]+/,$text);
     foreach my $row (@rows){
@@ -143,7 +150,7 @@ sub from_text($class,$text){
 	$self->{$1}=$2 ? $2 : undef;
     };
 
-    # granska värden till new
+    # validate values
     foreach my $key (keys %$keys){
 	exists($self->{$key}) or die "missing field $key\n";
 	if(defined($self->{$key})){
@@ -159,10 +166,11 @@ sub from_text($class,$text){
     return bless($self,$class);
 };
 
-# ---- klassmetoder för ändring ----
+# ---- class methods for changing ----
 
 sub resolve_unresolved($class){
-    # effekt: försöker sätta DNS-namn för poster som saknar sådant
+    # effect: tries to set DNS-name for reports missing such
+    
     $main::debug and main::lm("running resolve_unresolved","report");
     $db->query('delete from report where origin IS NULL or origin_id IS NULL');
     for my $report (map {bless($_,$class)} $db->query_all('select * from report where domain IS NULL ORDER BY random() LIMIT 20')){
@@ -178,11 +186,11 @@ sub resolve_unresolved($class){
     };
 };
 
-# ---- metoder för åtkomst ----
+# ---- methods for access ----
 
 sub unicode($self){
-    # retur: self som läsbar enraders sträng
-
+    # return: self as human readable one-line string
+    
     my @r=();
     if(defined($self->{origin}) and defined($self->{origin_id})){
 	push @r,$self->{origin};
@@ -195,13 +203,14 @@ sub unicode($self){
 };
 
 sub duplicate($self){
-    # retur: ev kopia i databas som kommer från samma källa
-    # pre  : self saknas id och är inte i databas
+    # return: possible duplicate of self in database
+    # pre  : self has no id value, and is not stored in database
 
     my @where=('origin=?','ip=?','event=?','time=?');
     my @args=($self->{origin},$self->{ip},$self->{event},$self->{time});
 
-    # vissa händelser (till exempel check) är OK att ha synbart lika
+    # some events (like check) are allowed to store seemingly similiar of,
+    # because several similiar checks can be done at the same second
     my @extra_keys=qw(reporter mta_id e_from e_to);
     if($self->{unique_event}){
 	push @extra_keys,'origin','origin_id';
@@ -223,10 +232,10 @@ sub duplicate($self){
     return $dup;
 };
 
-# ---- metoder för ändring ----
+# ---- methods for changing ----
 
 sub resolve($self,$next){
-    # effekt: sätter värde domain, kör next
+    # effect: sets value for domain from DNS, runs next on success
 
     DDgrey::DNS::verified_domain_next(
 	$self->{ip},
@@ -239,7 +248,7 @@ sub resolve($self,$next){
 };
 
 sub save($self){
-    # effekt: sparar
+    # effect: saves
 
     $self->{stored}=time();
     $self->SUPER::save();
@@ -254,7 +263,7 @@ sub save($self){
 
 # ---- package init ----
 
-# slår upp kvarstående namn en gång i minuten
+# start resulution of domains one every minute
 push @main::on_done,sub{
     __PACKAGE__->resolve_unresolved();
     $main::select->register_interval(
@@ -265,7 +274,7 @@ push @main::on_done,sub{
     );
 };
 
-# registrera modell
+# register model
 DDgrey::DBStore::register_model(__PACKAGE__);
 
 return 1;

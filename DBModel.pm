@@ -13,23 +13,29 @@ use DDgrey::Perl6::Parameters;
 # variables to override if needed
 our $indexes={};
 
-# ---- klassmetoder ----
+# ---- class methods ----
 
 sub get_table($class){
+    # return: table name for cass
+    
     $class=ref($class)||$class;
     no strict 'refs';
     return ${$class.'::table'};
 };
 
 sub ensure_tables($class){
-    # effekt: ser till att databas innehåller rätt tabeller
+    # effect: ensures that database contains the correct tables and indexes
+    # pre   : database may only contain correct table or no table for class
+    
     $class=ref($class)||$class;
     no strict 'refs';
 
-    # gör tabell
+    $main::debug and main::lm("checking tables and index for $class");
+    
+    # ensures table
     $db->query('create table if not exists '.${$class.'::table'}.' ('.join(',',@{$class.'::fields'}).')');
 
-    # gör ev index
+    # ensures possible indexes
     my %indexes=%{$class.'::indexes'};
     for my $name (keys %indexes){
 	$db->query('create index if not exists '.$name.' on '.${$class.'::table'}.' ('.join(',',@{$indexes{$name}}).')');
@@ -38,7 +44,7 @@ sub ensure_tables($class){
 };
 
 sub get_fields($class){
-    # retur: fältnamn att använda i db
+    # return: field names to use in DB
     $class=ref($class)||$class;
     no strict 'refs';
     my @res=();
@@ -48,10 +54,10 @@ sub get_fields($class){
     return @res;
 };
 
-# ---- metoder för åtkomst ----
+# ---- methods for access ----
 
 sub as_text($self){
-    # retur: self i textformat
+    # return: self as text
 
     my $r='';
     foreach my $key ($self->get_fields()){
@@ -60,10 +66,11 @@ sub as_text($self){
     return $r;
 };
 
-# ---- metoder för ändring ----
+# ---- methods for changing ----
 
 sub save($self){
-    # effekt: sparar policy
+    # effect: saves
+    
     my @fields=grep {$_ ne 'id'} $self->get_fields();
     if(defined($self->{id})){
 	$db->query('update '.$self->get_table().' set '.join(',',map {'"'.$_.'"=?'} @fields).' where id=?',(map {$self->{$_}} @fields),$self->{id});
@@ -74,5 +81,5 @@ sub save($self){
     };
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

@@ -1,5 +1,5 @@
 # ---- klass Traps ----
-# klass för spamfällor
+# spam traps
 
 package DDgrey::Traps;
 
@@ -19,11 +19,11 @@ our @EXPORT_OK=qw($traps);
 our $traps;
 our $loaded={};
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub init($class){
-    # retur : ny DB-baserad lagring
-    # effekt: kan sätta undantag
+    # return: new traps list
+    # effect: may raise exception
     defined($traps) and return $traps;
 
     my $self={};
@@ -34,9 +34,12 @@ sub init($class){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub reload_if_changed($self,$missing_ok){
+    # effekt: re-reads list of spamtraps if changed
+    #         if missing_ok, a missing traps file will only result in a warning
+    
     for my $f (@{$main::config->{traps}}){
 	my @stat=stat($f);
 	!defined($stat[9]) and !defined($loaded->{$f}) and next;
@@ -53,8 +56,9 @@ sub reload_if_changed($self,$missing_ok){
 };
 
 sub reload($self,$missing_ok){
-    # effekt: läser om lista med spamtraps
-
+    # effect: re-reads list of spamtraps
+    #         if missing_ok, a missing traps file will only result in a warning
+    
     %{$self}=(); 
     for my $t (@{$main::config->{soft_trap}}){
 	$self->{$t}='soft';
@@ -62,7 +66,7 @@ sub reload($self,$missing_ok){
     for my $t (@{$main::config->{hard_trap}}){
 	$self->{$t}='hard';
     };
-    # läser från fil
+    # read from file
     for my $f (@{$main::config->{traps}}){
 	$loaded->{$f}=time();
 	main::lm("reading traps from $f","traps");
@@ -87,10 +91,10 @@ sub reload($self,$missing_ok){
 };
 
 sub check($self,$ip,$from,$to){
-    # effekt: undersöker ip, from, to och rapporterar om to var spamtrap
+    # effect: reports ip, from, to and report if mail is sent to spamtrap
 
     if(defined($self->{$to})){
-	# logga
+	# log
 	my $report=DDgrey::Report->new({
 	    reporter=>'traps',
 	    event=>$self->{$to}.'_trap',
@@ -104,9 +108,9 @@ sub check($self,$ip,$from,$to){
 
 };
 
-# ---- init av paket ----
+# ---- package init ----
 
-# läser om trap-filer en gång per minut
+# re-read traps file one a minute
 push @main::on_done,sub{
     __PACKAGE__->init();
     $main::select->register_interval(

@@ -1,5 +1,5 @@
 # ---- class Policy ----
-# class för IP address policy
+# policy per IP address
 
 package DDgrey::Policy;
 
@@ -23,10 +23,10 @@ use parent qw(DDgrey::DBModel);
 my $search_duration;
 my $trusted;
 
-# plugin för check (kontroll av trap, okända mottagare mm)
+# plugins for checking (traps, unknown recipients ...)
 our @check_plugin=();
 
-# beskrivning
+# description
 our $table='policy';
 our @fields=('id integer primary key autoincrement','ip text unique','domain text','grey integer','black integer','fdate integer','tdate integer','score integer','reason text');
 our %indexes=(
@@ -35,14 +35,14 @@ our %indexes=(
     'domain'=>['domain'],
     );
 
-# ---- klassmetoder ----
+# ---- class methods ----
 
 sub check($class,$ip,$from,$to,$next){
-    # effekt: kör next med "white", "grey" eller "black" för
-    #         kombination av ip, from och to
-    #         loggar förfrågan från dessa tre värden
+    # effect: eventually runs next with "white", "grey" eller "black" for
+    #         combination of ip, from och to
+    #         logs call, for use in individual triplet greylisting
 
-    # kollar om värd är vitlistad
+    # check whitelist
     foreach my $m (@$trusted){
 	if($m->match($ip)){
 	    $main::debug > 1 and main::lm("trusted, always white for $ip",'policy');
@@ -59,41 +59,42 @@ sub check($class,$ip,$from,$to,$next){
 };
     
 sub process_report($class,$report){
-    # effekt: uppdaterar policy baserat på report
+    # effect: updates policy based on report
 
     my $self=$class->lookup($report->{ip});
     $self or return;
 
-    # hoppar över check
+    # skips check
     if($report->{event} eq 'check'){
 	return;
     };
     
-    # hoppar över bra rapporter för whitelist
+    # skips good reports if whitelisted
     if($report->{event}=~/^(?:ok)$/ and !defined($self->{grey}) and !defined($self->{black})){
 	return;
     };
 
-    # hoppar över dåliga rapporter för blacklist
+    # skips bad reports if blacklisted
     if(not $report->{event}=~/^(?:ok)$/ and defined($self->{black})){
 	return;
     };
 
-    # uppdatera i övriga fall
+    # otherwise, update
     $main::debug and main::lm("start updating policy for $self->{ip} due to report","policy");
     $self->update(sub{$self->{prel}//0 or $self->save()});
 };
 
 sub delete_expired($class){
-    # effekt: tar bort utgången policy
+    # effect: deletes expired policy
+    
     $main::debug and main::lm("running delete_expired","policy");
     $db->query("delete from policy where tdate < ?",time());
 };
        
-# ---- konstruktorer ----
+# ---- constructors ----
 
 sub ensure_policy($class,$ip,$next){
-    # effekt: kör next med policy för ip
+    # effect: runs next, with new policy for ip
 
     my $self=$class->lookup($ip);
     if($self){
@@ -101,7 +102,7 @@ sub ensure_policy($class,$ip,$next){
 	return &$next($self);
     };
 
-    # gör ny
+    # create new
     $self=$class->new($ip);
     $self->update(sub{
 	if(my $other=$class->lookup($ip)){
@@ -114,7 +115,8 @@ sub ensure_policy($class,$ip,$next){
 };
 
 sub lookup($class,$ip){
-    # retur: ev policy för ip
+    # return: possible existing policy for ip
+    
     my $self=$db->query_first('select * from policy where ip=?',$ip);
     $self or return undef;
     bless($self,$class);
@@ -122,7 +124,8 @@ sub lookup($class,$ip){
 };
 
 sub new($class,$ip){
-    # retur : ny policy för ip
+    # return: new (unsaved) policy for ip
+    
     my $self={
 	ip=>$ip,
     };
@@ -130,17 +133,18 @@ sub new($class,$ip){
     return $self;
 };
 
-# ---- metoder för åtkomst ----
+# ---- methods for access ----
 
 sub check_resolved($self,$ip,$from,$to,$next){
-    # effekt: kör next med "white", "grey" eller "black" utifrån
-    #         from, to och policy i self
-    #         loggar förfrågan från dessa tre värden
+    # effect: eventually runs next with "white", "grey" eller "black" for
+    #         combination of ip, from och to
+    #         logs call, for use in individual triplet greylisting
     
     # hämta resultat
     my $res=$self->check_status($from,$to);
 
-    # gör rapport om check
+    # make report of ckeck
+    # used for individual triplet greylisting
     my $report=DDgrey::Report->new({
 	unique_event=>1,
 	reporter=>'check',
@@ -159,11 +163,11 @@ sub check_resolved($self,$ip,$from,$to,$next){
 };
 
 sub check_status($self,$from,$to){
-    # retur: status för denna policy för from och to
+    # return: status for this policy for from och to
 
-    # svara black eller grey om svartlistad
+    # black or grey if blacklisted
     if($self->{black}){
-	# svara grey om nyligen svartlistad (för att undvika avslöja traps)
+	# answer grey if recently blacklisted (to avoid leak traps information)
 	if(time() > $self->{black}){
 	    return 'grey';
 	}
@@ -172,12 +176,12 @@ sub check_status($self,$from,$to){
 	};
     };
 
-    # skicka direkt om vitlistad
+    # send white
     if(!defined($self->{grey})){
 	return 'white';
     };
 
-    # sök i övriga fall bland tidigare check
+    # otherwise, search for triplet in previous checks
     if(DDgrey::Report->domain_check($self->{domain},$from,$to,time()-$self->{grey}-($main::config->{retry} // $search_duration),time()-$self->{grey})){
 	return 'white';
     }
@@ -186,10 +190,10 @@ sub check_status($self,$from,$to){
     };
 };
 
-# ---- metoder för ändring -----
+# ---- methods for changing -----
 
 sub resolve($self,$next){
-    # effekt: sätter värde domain, kör next
+    # effect: sets value of domain, runs next
 
     DDgrey::DNS::verified_domain_next(
 	$self->{ip},
@@ -202,7 +206,7 @@ sub resolve($self,$next){
 };
 
 sub update($self,$next){
-    # effekt: räknar ut policy baserat på rapporter, kör sen next
+    # effect: calculates policy based on reports, then runs next
     $main::debug and main::lm("start updating policy for $self->{ip}","policy");
     
     $self->resolve(sub{
@@ -235,8 +239,8 @@ sub update($self,$next){
 };
 
 sub update_if_ready($self,$next){
-    # effekt: räknar ut policy baserat på rapporter, kör sen next
-    # pre   : namnuppslagningar är skickade
+    # effect: calculates policy based on reports, then runs next
+    #         if name resolution is done
     
     if(
 	exists($self->{resolved}) and 
@@ -251,12 +255,12 @@ sub update_if_ready($self,$next){
 };
 
 sub update_resolved($self,$next){
-    # effekt: räknar ut policy baserat på rapporter, kör sen next
-    # pre   : uppgifter från namnuppslagning är färdiga
+    # effect: calculates policy based on reports, then runs next
+    # pre   : name resolution is done
 
     $main::debug and main::lm("updating policy for $self->{ip}","policy");
 
-    # tider
+    # duration constants
     my $search_duration=$main::config->{search_duration} // 60*60*24*60;
     my $policy_duration=$main::config->{policy_duration} // 60*60*24*7;
     my $grey_min=$main::config->{grey_min} // 10;
@@ -265,23 +269,23 @@ sub update_resolved($self,$next){
     my $grey_long=$main::config->{grey_long} // 60*60*12;
     my $grey_max=$main::config->{grey_max} // 60*60*24;
     
-    # defaultvärden
+    # default values
     $self->{fdate}=time();
     $self->{tdate}=time()+$policy_duration;
     $self->{black}=undef;
     $self->{grey}=$grey_default;
 
-    # poäng från olika granskningar mellan -100 och 100
+    # variables for score and reason
     my $scores={};
     my $reasons={};
 
-    # -- rykte för IP från externa tjänster --
+    # -- IP reputation from external services --
 
     # sätt prel om domän är preliminär
     if(!defined($self->{resolved})){
 	$self->set_prel();
     };
-    # längre tid för icke-validerad domän
+    # lower score for non-validated domain
     if($self->{resolved} and not $self->{is_dynamic}//1){
 	if($self->{domain}=~/^[\d\.\:]+$/){
 	    $scores->{reverse}=-10;
@@ -293,7 +297,7 @@ sub update_resolved($self,$next){
 	};
     };
 
-    # längre tid för dynamiskt IP
+    # lower score for dynamic IP
     if(!defined($self->{is_dynamic})){
 	$self->set_prel();
     };
@@ -302,7 +306,7 @@ sub update_resolved($self,$next){
 	$reasons->{dynamic}='dynamic IP';
     };
 
-    # längst tid om listad i spamhaus
+    # lowest score if listed in Spamhaus ZEN 
     if(!defined($self->{spamhaus})){
 	$self->set_prel();
     };
@@ -311,7 +315,7 @@ sub update_resolved($self,$next){
 	$reasons->{spamhaus}='Spamhaus ZEN';
     };
 
-    # längst tid om listad i spamcop
+    # lowest score if listed in Spamcop 
     if(!defined($self->{spamcop})){
 	$self->set_prel();
     };
@@ -320,7 +324,7 @@ sub update_resolved($self,$next){
 	$reasons->{spamcop}='Spamcop';
     };
 
-    # längst tid om listad i SORBS (utöver dynamisk)
+    # lowest score if listed in SORBS
     if(!defined($self->{sorbs})){
 	$self->set_prel();
     };
@@ -329,7 +333,7 @@ sub update_resolved($self,$next){
 	$reasons->{sorbs}='SORBS';
     };
 
-    # kollar DNSWL
+    # score DNSWL
     if(!defined($self->{dnswl})){
 	$self->set_prel();
     }
@@ -344,7 +348,7 @@ sub update_resolved($self,$next){
 	};
     };
 
-    # -- senaste korrespondens --
+    # -- recent correspondence --
     
     my $count_1=DDgrey::Report->domain_count($self->{domain},'ok',time()-$search_duration,time()-60*60*24);
     my $count_7=DDgrey::Report->domain_count($self->{domain},'ok',time()-$search_duration,time()-60*60*24*7);
@@ -362,20 +366,20 @@ sub update_resolved($self,$next){
 	$scores->{ok}=30;
     };
 
-    # -- justering av BL-resultat --
+    # -- blacklist result adjustment --
     
-    # ta bort poäng för troligen felaktigt SORBS-listade
+    # remove score from probably erratic SORBS listing
     if(($scores->{ok}//0 >= 20 or $self->{dnswl} > 1) and $reasons->{sorbs}){
 	$reasons->{sorbs}='SORBS false';
 	delete $scores->{sorbs};
     };
-    # ta bort poäng för troligen felaktigt Spamcop-listade
+    # remove score from probably erratic Spamcop listing
     if(($scores->{ok}//0 >= 30 or $self->{dnswl} > 1) and $reasons->{spamcop}){
 	$reasons->{spamcop}='Spamcop false';
 	delete $scores->{spamcop};
     };
 
-    # -- manuella rapporter av mail --
+    # -- manual reports --
     
     my $count;
     
@@ -385,7 +389,7 @@ sub update_resolved($self,$next){
 	$scores->{manual}=-100-50*$count;
     };
 
-    # -- spamfällor --
+    # -- spam traps --
 
     if(DDgrey::Report->find($self->{ip},'hard_trap',time()-$search_duration,time())){
 	$reasons->{hard_trap}='hard trap';
@@ -402,11 +406,11 @@ sub update_resolved($self,$next){
 	$scores->{soft_trap}=-50*$count;
     };
 
-    # -- okända mottagare --
+    # -- unknown recipients --
 
     $count=DDgrey::Report->count_grouped($self->{ip},'unknown',time()-$search_duration,time());
     if($count > 0){
-	# acceptera viss andel okända för betrodda domäner
+	# accept some percentage unknown from trusted domain
 	if($self->{count_7}//0 > 0 and ($self->{dnswl}//0 > 0 or $scores->{ok}//0 > 10) and !($self->{spamcop}//1) and !($self->{spamhaus}//1) and !($self->{is_dynamic}//1)){
 	    no integer;
 	    my $share=$count / $self->{count_7};
@@ -436,7 +440,7 @@ sub update_resolved($self,$next){
 	$scores->{spam}=-50*($count);
     };
 
-    # -- försök till relay --
+    # -- relay attempt --
 
     $count=DDgrey::Report->count_grouped($self->{ip},'relay',time()-$search_duration,time());
     if($count > 0){
@@ -444,7 +448,7 @@ sub update_resolved($self,$next){
 	$scores->{relay}=-60*($count);
     };
 
-    # -- avbrutet --
+    # -- disconnect --
     
     $count=DDgrey::Report->count_grouped($self->{ip},'disconnect',time()-$search_duration,time());
     if($count > 0){
@@ -452,7 +456,7 @@ sub update_resolved($self,$next){
 	$scores->{disconnect}=max(-10*($count),-50);
     };
 
-    # -- sammanfatta --
+    # -- conclude and make delay durations or blacklist --
 
     $self->{reason}=(join(',',sort values %{$reasons}) or 'basic');
     my $score=sum(values %{$scores}) // 0;
@@ -481,25 +485,31 @@ sub update_resolved($self,$next){
 
     $main::debug and main::lm("updated policy for $self->{ip} to score: $self->{score} reason: $self->{reason}","policy");
 
-    # fortsätter
+    # continues
     &$next();
 };
 
 sub set_black($self){
-    # effekt: sätter self till svartlistad
+    # effect: sets self to blacklist
+
+    # blacklisting is enabled directly for any non-Null value of black
+    # black is timestamp from when "black" will be returned directly
+    # before that, "grey" is returned
+    # this is done, with a random delay, to prevent leaking information on traps
+    
     $self->{grey}=undef;
     $self->{black}=time()+60*60*24+int(rand(60*60*24*7)); # när blir black
 };
 
 sub set_prel($self,$reason){
-    # effekt: sätter self som preliminärt resultat (kort tid)
+    # effect: sets self to preliminary (short valid time)
     $self->{tdate}=time()+60*60*1;
     $self->{prel}=1;
 };
 
 # ---- package init ----
 
-# hämtar värden från konfiguration
+# fetch values from configuration
 push @main::on_done,sub{
     $search_duration=$main::config->{search_duration} // 60*60*24*60;
     foreach my $r (@{$main::config->{trusted}}){
@@ -510,7 +520,7 @@ push @main::on_done,sub{
     };
 };
 
-# raderar utgångna poster
+# delete expired policy
 push @main::on_done,sub{
     __PACKAGE__->delete_expired();
     $main::select->register_interval(

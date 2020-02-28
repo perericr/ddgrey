@@ -1,6 +1,8 @@
 # Automatically added by dh_installinit
-if [ -x "/etc/init.d/ddgrey" ]; then
-	update-rc.d ddgrey defaults >/dev/null
-	invoke-rc.d ddgrey start || exit $?
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
+	if [ -x "/etc/init.d/ddgrey" ]; then
+		update-rc.d ddgrey defaults >/dev/null
+		invoke-rc.d ddgrey start || exit $?
+	fi
 fi
 # End automatically added section

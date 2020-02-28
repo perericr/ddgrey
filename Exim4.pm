@@ -1,5 +1,5 @@
 # ---- class Reporter::Exim4 ----
-# class för rapportör av Exim4-loggar
+# Exim4 log reporter
 
 package DDgrey::Reporter::Exim4;
 
@@ -16,11 +16,13 @@ use parent qw(DDgrey::TailReporter);
 my $ip_re='[\d\.\:]+';
 my $host_re='(?:\S+\s+\(\S+\)|\S+)\s+\[('.$ip_re.')\]';
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class){
-    # retur:  ny rapportör av class från config
-    # effekt: registrerar hos select, startar underprocess, kan sätta undantag
+    # return:  new reporter of class from config
+    # effect:  registers with select
+    #          starts subprocess
+    #          may raise exception
 
     my $file=($main::config->{exim4_mainlog} // '/var/log/exim4/mainlog');
     my $self=$class->SUPER::new($file);
@@ -29,21 +31,21 @@ sub new($class){
     return $self;
 };
 
-# ---- metoder -----
+# ---- methods -----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: name of subsystem (for logging)
     return "exim4";
 };
 
 sub receive_line($self,$line){
-    # effekt: tar emot rad line från exim och gör eventuellt rapport
+    # effect: receives line, possibly makes report
     chomp $line;
 
-    # konfiguration
+    # configuration
     my $unknown = $main::config->{exim4_unknown} // 'verify';
     
-    # plockar ut datum
+    # extract date
     $line=~s/^(\d+\-\d+\-\d+ \d+\:\d+\:\d+)\s*//;
     my $date=$1 ? ParseDate($1) : undef;
     if(!$date){
@@ -52,7 +54,7 @@ sub receive_line($self,$line){
     };
     my $time=UnixDate($date,"%s");
 
-    # oväntad avslutning
+    # unexcepted disconnect from MTA
     if($line=~/^unexpected disconnection while reading SMTP command from $host_re \(error: Connection reset by peer\)/){
 	my $report=DDgrey::Report->new({
 	    event=>'disconnect',
@@ -64,7 +66,7 @@ sub receive_line($self,$line){
 	return;
     };
 
-    # okänd mottagare (från tidig loggning i ACL)
+    # unknown recipient (from special early logging clauses in ACL)
     if($line=~/^H=$host_re Warning: unknown recipient (\S+) from (\S+)/){
 	if($unknown eq 'verify'){
 	    my $report=DDgrey::Report->new({
@@ -108,7 +110,7 @@ sub receive_line($self,$line){
 	return;
     };
 
-    # saknad mottagare
+    # unknown recipient
     if($line=~/^H=$host_re F=<(\S+)> rejected RCPT <(\S+)>\: Unrouteable address\b/){
 	if($unknown eq 'delivery'){
 	    my $report=DDgrey::Report->new({
@@ -124,7 +126,7 @@ sub receive_line($self,$line){
 	return;
     };
     
-    # meddelanden accepterade utifrån
+    # external message accepted
     if($line=~/^(\S+) \<\= (\S+) H=$host_re/){
 	$self->{current}->{$1}={
 	    exim_id=>$1,
@@ -145,7 +147,7 @@ sub receive_line($self,$line){
 	my $exim_id=$1;
 	my $rest=$2;
 
-	# till-rader
+	# to-lines
 	if($rest=~/^\=\> (\S+?\s+)?\<(\S+)\>/){
 	    $self->{current}->{$exim_id}->{to}->{$2}=1;
 	    return;
@@ -155,9 +157,9 @@ sub receive_line($self,$line){
 	    return;
 	};
 	
-	# färdig
+	# message done, make report
 	if($rest=~/^Completed\b/){
-	    # skippa lokala avsändare
+	    # skip local IP:s
 	    if(!defined($self->{current}->{$exim_id}->{ip})){
 		return;
 	    };
@@ -179,7 +181,7 @@ sub receive_line($self,$line){
 	};
     };
 
-    # övrigt att skippa, för felsökning
+    # other to skip, for debug
     # $line=~/^Start queue run:/ and return;
     # $line=~/^End queue run:/ and return;
     # $line=~/^\S+ Message is frozen\b/ and return;
@@ -196,6 +198,8 @@ sub receive_line($self,$line){
 };
 
 sub report($self,$report){
+    # effekt: send report to dispatcher
+    
     $main::debug > 1 and main::lm("sending report ".$report->unicode(),"exim4");
     $main::dispatcher->report($report);
 };

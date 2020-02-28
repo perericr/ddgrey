@@ -1,5 +1,5 @@
 # ---- class TailReporter ----
-# gemensam class för Reporter som läser loggar
+# common class for Reporter reading log files
 
 package DDgrey::TailReporter;
 
@@ -12,32 +12,35 @@ use DDgrey::Perl6::Parameters;
 
 use parent qw(DDgrey::Reporter);
 
-# virtuell class - inga direkta instanser
-# dessa metoder ska implementeras av underclass: receive_line
+# virtual class - no direct instances
+# to be implemented by subclass: receive_line
 
-# ---- konstruktor ----
+# ---- constructor ----
 sub new($class,$file){
-    # retur:  ny rapportör av class från config, följer file
-    # effekt: registrerar hos select, startar underprocess, kan sätta undantag
+    # return:  new reporter of class, following file
+    # effect:  registers with select
+    #          starts subprocess
+    #          may raise exception
 
     my $self=$class->SUPER::new();
 
     -r $file or main::error("can't read $file");
     $self->{file}=$file;
-    # öppna filhandtag
+    
+    # open file handle
     $self->open();
 
-    # sätt interval för att köra seek
+    # set interval for running seek
     $main::select->register_interval(
 	5,
 	sub{
-	    # provar att öppna om inget filhandtag
+	    # no file handle, try opening
 	    if(!$self->{fh}){
 		main::lm("no $self->{file} found, trying to reopen",$self->service(),"warning");
 		$self->open();
 	    };
 
-	    # öppnar igen om inte ändrad på ett tag
+	    # re-open if nothing changed for a while
 	    if($self->{fh}){
 		if(time()-$self->{changed} > 60*60){
 		    $self->close();
@@ -45,7 +48,7 @@ sub new($class,$file){
 		};
 	    };
 
-	    # kollar om fortfarande behöver vara pausad
+	    # check if still need of pausing (due to system load)
 	    if($self->{fh}){
 		if($self->{paused} and $main::select->load() < 1){
 		    $main::debug and main::lm("resuming tail reporter",$self->service());
@@ -54,7 +57,7 @@ sub new($class,$file){
 		};
 	    };
 	    
-	    # tar bort markering om filslut
+	    # seek and reset end of file flag
 	    if($self->{fh}){
 		if($self->{eof}){
 		    $self->{fh}->seek(0,1);
@@ -67,10 +70,10 @@ sub new($class,$file){
     return $self;
 };
 
-# ---- metoder -----
+# ---- methods -----
 
 sub open($self){
-    # effekt: försöker öppnar filhandtag
+    # effect: tries to open configured file handle
 
     delete $self->{fh};
     my $fh;
@@ -82,12 +85,12 @@ sub open($self){
     $self->{eof}=0;
     $self->{paused}=0;
     
-    # registrera
+    # register
     $self->register();
 };
 
 sub register($self){
-    # effekt: registrerar i select
+    # effect: registers with select
 
     $main::select->register_line($self->{fh},sub{
 	$self->process_line(@_);
@@ -99,14 +102,15 @@ sub register($self){
 };
 
 sub close($self){
-    # effekt: stänger
+    # effect: closes
 
     $main::select->unregister($self->{fh});
     $self->{fh}->close();
 };
 
 sub process_line($self,$line){
-    # effekt: tar hand om rad
+    # effect: handles line
+    
     $self->receive_line($line);
     $self->{changed}=time();
 

@@ -1,5 +1,5 @@
 # ---- class Dispatcher ----
-# class för själva hanteringen av mottagna rapporter
+# handler of received reports
 
 package DDgrey::Dispatcher;
 
@@ -15,17 +15,18 @@ use DDgrey::Policy;
 use DDgrey::ReadClient;
 use DDgrey::Report;
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class){
-    # retur:  ny dispatcher
-    # effekt: registrerar hos select, kan sätta undantag
+    # return: new dispatcher
+    # effect: registers with select
+    #         may raise exception
 
     my $self={};
     bless($self,$class);
 
 
-    # startar periodisk rensning av gamla poster
+    # start periodic cleaning of obsolete posts
     # $main::select->register_interval(60*60*4,sub{
     # $main::store->purge();
     # });
@@ -33,10 +34,12 @@ sub new($class){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub register_client($self,$client,$read,$write){
-    # effekt: registrera klient. minst en av read och write ska vara sanna
+    # effect: registers client as read and/or write
+    # pre   : at least one of read och write is true
+    
     if($read){
 	push @{$self->{server_read}},$client;
     }; 
@@ -46,7 +49,7 @@ sub register_client($self,$client,$read,$write){
 };
 
 sub close($self){
-    # effekt: stänger dispatcher och klienter
+    # effect: closes dispatcher and clients
 
     foreach my $server (@{$self->{server_write}}){
 	$server->close();
@@ -56,18 +59,18 @@ sub close($self){
     };
 };
 
-# ---- metoder för rapporter ----
+# ---- methods for reports ----
 
 sub report($self,$report){
-    # effekt: tar emot och agerar på report, försöker säkra DNS
+    # effect: receives and acts on report, tries to ensure domain using DNS
 
-    # hoppar över dubletter
+    # skips dubletter
     if(my $d=$report->duplicate()){
 	$main::debug > 1 and main::lm("skipping duplicate of ".$d->unicode(),"dispatch");
 	return;
     };
 
-    # säkerställ att uppslagen
+    # ensure domain
     if(defined($report->{domain})){
 	$self->report_resolved($report);
     }
@@ -77,9 +80,10 @@ sub report($self,$report){
 };
 
 sub report_resolved($self,$report){
-    # effekt: tar emot och agerar på report
+    # effect: receives and acts on report
+    # pre   : attempt has been done to resolve domain of report
 
-    # hoppar över dubletter
+    # skip duplicates
     if(my $d=$report->duplicate()){
 	$main::debug > 1 and main::lm("skipping duplicate of ".$d->unicode()." after resolved","dispatch");
 	return;
@@ -87,26 +91,26 @@ sub report_resolved($self,$report){
 
     $main::debug > 1 and main::lm("processing report ".$report->unicode(),"dispatch");
 
-    # säkerställ att lagrad
+    # ensure stored
     if(!$report->{id}){
 	$report->save();
 	$main::debug > 1 and main::lm("saved report ".$report->unicode(),"dispatch");
     };
 
-    # uppdatera policy vid behov
+    # update policy if needed
     DDgrey::Policy->process_report($report);
 
-    # skicka vidare till prenumeranter (förbindelse initierad av fjärrsystem)
+    # send to possible subscribers (connections initiated by remote system)
     foreach my $subscriber (@{$self->{subscriber}}){
 	&$subscriber($report);
     };
 };
 
-# ---- metoder för prenumeranter på händelser ----
+# ---- methods for event subscribers ----
 
 sub register_subscriber($self,$f){
-    # retur : id för prenumeration
-    # effekt: registrar funktion f att ta emot rapporter
+    # return: id for subscription
+    # effect: registers function f to receive reports
     
     my $id=$#{$self->{subscriber}}+1;
     $self->{subscriber}->[$id]=$f;
@@ -114,7 +118,7 @@ sub register_subscriber($self,$f){
 };
 
 sub unregister_subscriber($self,$id){
-    # effekt: avregistrerad prenumeration
+    # effect: unregisters subscription id
 
     delete $self->{subscriber}->[$id];
 };

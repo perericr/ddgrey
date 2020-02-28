@@ -1,5 +1,5 @@
 # ---- class ReportClient ----
-# klass för skriv-anslutning till server för att skicka rapporter
+# write connection to server for sending reports
 
 package DDgrey::ReportClient;
 
@@ -13,22 +13,22 @@ use DDgrey::Report;
 
 use parent qw(DDgrey::Client);
 
-# ---- konstruktor ----
+# ---- constructor ----
 
-# ---- metoder ----
+# ---- methods ----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: name of subsystem (for logging)
     return "report client";
 };
 
 sub log_connect{
-    # retur: huruvida logga anslutning
+    # return: whether to log connect
     return 0;
 }
 
 sub report($self,$report){
-    # effekt: skicka report till server
+    # effect: sends report to server
 
     $main::debug > 1 and main::lm("scheduling report ".$report->unicode(),"report client");
     $self->schedule(sub{
@@ -38,7 +38,7 @@ sub report($self,$report){
 };
 
 sub handle_go($self,$line,$report){
-    # effekt: skickar report om line verkar OK
+    # effect: sends report to server if line inidicates possible
 
     if($line=~/^301\D/){
 	$self->send($report->as_text().".\r\n");
@@ -51,7 +51,8 @@ sub handle_go($self,$line,$report){
 };
 
 sub handle_reported($self,$line,$report){
-    # effekt: accepterar line
+    # effect: handles line
+    # pre:    line is result of sending report to server
 
     $main::debug > 1 and main::lm("sent report ".$report->unicode(),"report client");
     if(not $line=~/^200\D/){

@@ -1,5 +1,5 @@
-# ---- klass LocalServer ----
-# klass för UNIX-server för synkronisering från ddgrey-report
+# ---- class LocalServer ----
+# UNIX server for synchronizing from ddgrey-report
 
 package DDgrey::LocalServer;
 
@@ -16,18 +16,18 @@ use DDgrey::SyncClientConnection;
 
 use parent qw(DDgrey::Server);
 
-# ---- klassmetoder ----
+# ---- class methods ----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: subsystem name (for logging)
     return "local server";
 };
 
-# ---- konstruktor ----
+# ---- construktor ----
 
 sub new($class){
-    # retur:  ny UNIX-server av class
-    # effekt: kan sätta undantag
+    # return: new UNIX server of class
+    # effect: may raise exception
 
     my $self=bless({},$class);
     ensure_dir("_RUNDIR_",$main::uid,$main::gid);
@@ -40,7 +40,7 @@ sub new($class){
     $self->{fh}->blocking(0);
     $self->{fh}->timeout($main::debug ? 5 : 60);
 
-    # registrera
+    # register
     $main::select->register_read($self->{fh},sub{$self->receive_read(@_)});
     $main::select->register_exception($self->{fh},sub{$self->close()});
     main::lm("listening on $self->{socket}","local server");
@@ -48,10 +48,10 @@ sub new($class){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub receive_read($self,$fh){
-    # effekt: behandlar aktivitet på fh
+    # effect: handles activity on fh
 
     if($fh eq $self->{fh}){
 	my $client_fh=$fh->accept();
@@ -69,5 +69,5 @@ sub receive_read($self,$fh){
     };
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

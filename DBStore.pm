@@ -1,5 +1,5 @@
-# ---- klass DBStore ----
-# klass för SQL-lagring av uppgifter
+# ---- class DBStore ----
+# base class for SQL-based data store
 
 package DDgrey::DBStore;
 
@@ -19,28 +19,30 @@ our @EXPORT_OK=qw($store $db);
 our $store;
 our $db;
 
-# ---- register över modeller ----
+# virtual package - no direct instances
+
+# ---- models register ----
 
 our @models=();
 
 sub register_model($model){
     if(defined($db)){
-	# kör kod direkt
+	# run code directly
 	$model->ensure_tables();
     }
     else{
-	# sparar tills databas är igång
+	# save until DB is ready
 	push @models,$model;
     };
 };
 
-# ---- klassmetoder ----
+# ---- class methods ----
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub init($class){
-    # retur : ny DB-baserad lagring
-    # effekt: kan sätta undantag
+    # return: new DB-based storage
+    # effect: may raise exception
 
     defined($store) and return $store;
 
@@ -51,7 +53,7 @@ sub init($class){
     $store=$self;
     $db=$self->{db};
 
-    # säkerställ tabeller
+    # ensure tables
     for my $cl (@models){
 	$cl->ensure_tables();
     };
@@ -60,9 +62,9 @@ sub init($class){
 };
 
 sub close($self){
-    # effekt: stänger anslutning
+    # effect: closes connection
     $self->{db}->close();
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

@@ -1,5 +1,5 @@
-# ---- klass Server ----
-# basklass för socket-server
+# ---- class Server ----
+# base class for socket server
 
 package DDgrey::Server;
 
@@ -11,33 +11,33 @@ use DDgrey::Perl6::Parameters;
 use Socket;
 
 
-# ---- metoder ----
+# ---- methods ----
 
 sub close($self){
-    # effekt: stänger server
+    # effect: closes server
 
-    # stänger klientförbindelser
+    # close client connections
     foreach my $client (values %{$self->{client_connection}}){
 	$client->close();
     };
 
-    # stänger server
+    # close server
     $main::select->unregister($self->{fh});
     $self->{fh}->shutdown(2);
     $self->{fh}->close();
 };
 
 sub register_client($self,$client){
-    # effekt: registrera klientförbindelse client
+    # effect: registers client connection client
     
     $self->{client_connection}->{$client}=$client;
 };
 
 sub unregister_client($self,$client){
-    # effekt: avregistrera klientförbindelse client
+    # effect: deregisters client connection client
     
     delete $self->{client_connection}->{$client};
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

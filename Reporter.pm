@@ -1,5 +1,5 @@
 # ---- class Reporter ----
-# class för rapportör
+# reporter
 
 package DDgrey::Reporter;
 
@@ -10,15 +10,15 @@ use DDgrey::Perl6::Parameters;
 
 use DDgrey::Report;
 
-# virtuell class - inga direkta instanser
+# virtual class - no direct instances
 
-# ---- konstruktor ----
+# ---- construktor ----
 sub new($class){
-    # retur:  ny rapportör av class från config, användande select
+    # return:  new reporter of class
 
     my $self={};
     return bless($self,$class);
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

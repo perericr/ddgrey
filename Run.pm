@@ -15,7 +15,7 @@ our $syslog_started=0;
 # --- functions -----
 
 sub ensure_dir($dir,$uid,$gid){
-    # effect: ensure that dir exists
+    # effect: ensures that dir exists
     if(!-d $dir){
 	mkdir($dir) or error("can't create $dir ($!)");
     };
@@ -25,13 +25,13 @@ sub ensure_dir($dir,$uid,$gid){
 };
 
 sub syslog_init($program){
-    # effect: start logging
+    # effect: starts logging
     openlog($program,"cons,pid","daemon") or error("can't open syslog");
     $syslog_started=1;
 };
 
 sub lm($m;$system,$cat){
-    # effect: log message m
+    # effect: logs message m
     $cat //= "info";
     $system and $m="$system: $m";
     $cat eq 'info' or $m="[$cat] $m";
@@ -44,7 +44,7 @@ sub lm($m;$system,$cat){
 };
 
 sub error($m;$system){
-    # effect: log message m, die
+    # effect: logs message m, die
     $cat="error";
     $system and $m="$system $m";
     $m="[error] $m";

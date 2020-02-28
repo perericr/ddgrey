@@ -1,5 +1,5 @@
 # ---- class ReadClient ----
-# klass för läs-anslutning till server
+# read connection to server
 
 package DDgrey::ReadClient;
 
@@ -14,39 +14,39 @@ use DDgrey::Sync;
 
 use parent qw(DDgrey::Client);
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class,$config){
-    # retur: ny läsklient av class till config argument 0
+    # return: new read client of class connecting to config argument 0
 
     my $self=$class->SUPER::new($config);
 
-    # startar alltid prenumeration efter OK helo
+    # always start subscription after OK helo
     $self->{on_helo}=sub{$self->subscribe()};
 
     main::lm("read client querying $self->{host}:$self->{port} started",$self->service());
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: name of subsystem (for logging)
     return "read client";
 };
 
 sub close_fh($self){
-    # effekt: stänger eget fh
+    # effect: closes own fh
 
     delete($self->{subscribed});
     $self->SUPER::close_fh();
 };
 
 sub subscribe($self){
-    # effekt: startar prenumeration
+    # effect: starts subscription
 
     my $last=DDgrey::Sync->last_fetched($self->{peername});
-    # sätt till något lägre värde för att kompensera ev klockjusteringar
+    # set to somewhat lower value to compensate for possible clock skew
     $last=(defined($last) ? $last-60 : 0);
 
     $self->ensure_connected() or return undef;
@@ -55,7 +55,7 @@ sub subscribe($self){
 };
 
 sub handle_subscribe($self,$line){
-    # effekt: startar subscribe-mottagning om line verkar OK
+    # effect: starts subscription if line indicates data will follow
 
     if($line=~/^302\D/){
 	$self->{subscribed}=1;
@@ -68,23 +68,23 @@ sub handle_subscribe($self,$line){
 };
 
 sub handle_subscribe_line($self,$line){
-    # effekt: hanterar rad line från subscribe
+    # effect: handles line from subscribe
     
     if($line=~/^[\r\n]+$/){
-	# kör hanterare av data
+	# handle report
 	$self->handle_subscribe_report($self->{data});
-	# slut på data
+	# data used, start over
 	delete($self->{data});
     }
     else{
-	# vanlig datarad - ta bort ev inledande punkt
+	# ordinary data line
 	$line=~s/^\.//;
 	$self->{data}.=$line;
     };
 };
 
 sub handle_subscribe_report($self,$data){
-    # effekt: hanterar mottagen rapport i textform data
+    # effect: handles text format report in data
 
     my $report=eval{DDgrey::Report->from_text($data)};
     if($@ or !defined($report)){

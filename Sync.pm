@@ -1,5 +1,5 @@
 # ---- class Sync ----
-# class for remote server last sync notes
+# remote server last sync notes
 
 package DDgrey::Sync;
 
@@ -13,7 +13,7 @@ use DDgrey::DBStore qw($db);
 
 use parent qw(DDgrey::DBModel);
 
-# beskrivning
+# description
 our $table='sync';
 our @fields=('id integer primary key autoincrement','name text','last integer');
 our %indexes=(
@@ -21,18 +21,17 @@ our %indexes=(
     'name'=>['name'],
     );
 
-
-# ---- klassmetoder för översikt (ger ej objekt) ----
+# ---- class methods for overview (no instances returned) ----
 
 sub last_fetched($class,$name){
-    # retur: senast hämtade uppgift från server name, om någon
+    # return: last fetched report from server name, if any
     return $db->query_first_one("select last from sync where name=?",$name);
 };
 
-# ---- klassmetoder för ändring ----
+# ---- class methods for changing ----
 
 sub update_fetched($class,$name,$time){
-    # effekt: sätter senast-hämtade uppgift för server name time
+    # effect: sets last-changed for server name to time
     
     my $self=($db->query_first("select * from sync where name=?",$name) // {name=>$name});
     bless($self,$class);
@@ -44,7 +43,7 @@ sub update_fetched($class,$name,$time){
 
 # ---- package init ----
 
-# registrera modell
+# register modell
 DDgrey::DBStore::register_model(__PACKAGE__);
 
 return 1;

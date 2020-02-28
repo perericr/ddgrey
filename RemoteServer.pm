@@ -1,5 +1,5 @@
-# ---- klass RemoteServer ----
-# klass för TCP-server för synkronisering mellan ddgrey-instanser
+# ---- class RemoteServer ----
+# TCP server for synchronizing between ddgrey instances
 
 package DDgrey::RemoteServer;
 
@@ -16,18 +16,18 @@ use DDgrey::SyncClientConnection;
 
 use parent qw(DDgrey::Server);
 
-# ---- klassmetoder ----
+# ---- class methods ----
 
 sub service($self){
-    # retur: namn på undersystem (för loggning)
+    # return: name of subsystem (for logging)
     return "remote server";
 };
 
-# ---- konstruktor ----
+# ---- constructor ----
 
 sub new($class){
-    # retur:  ny TCP-server av class
-    # effekt: kan sätta undantag
+    # return:  new TCP server of class
+    # effect: may raise exception
 
     my $self=bless({},$class);
 
@@ -41,7 +41,7 @@ sub new($class){
     $self->{fh}->blocking(0);
     $self->{fh}->timeout($main::debug ? 5 : 60);
 
-    # konfiguration av accept
+    # configuration of accept parameters
     foreach my $r (@{$main::config->{accept}}){
 	for my $ip (resolved($r)){
 	    my $m=Net::Netmask->new2($ip) or main::error("unkown address/range $ip");
@@ -69,7 +69,7 @@ sub new($class){
 	};
     };
 
-    # registrera
+    # register
     $main::select->register_read($self->{fh},sub{$self->receive_read(@_)});
     $main::select->register_exception($self->{fh},sub{$self->close()});
     main::lm("listening on port $port",$self->service());
@@ -77,10 +77,10 @@ sub new($class){
     return $self;
 };
 
-# ---- metoder ----
+# ---- methods ----
 
 sub receive_read($self,$fh){
-    # effekt: behandlar aktivitet på fh
+    # effect: handles activity on fh
 
     if($fh eq $self->{fh}){
 	my $client_fh=$fh->accept();
@@ -93,7 +93,7 @@ sub receive_read($self,$fh){
 	$client_fh->timeout($main::debug ? 5 : 60);
 	binmode($client_fh,":encoding(UTF-8)");
 
-	# kollar accept-rättighet
+	# check accept permission
 	my $ip=$client_fh->peerhost;
 	my $accept={read=>0,write=>0};
 	foreach my $m (@{$self->{accept_read}}){
@@ -109,7 +109,7 @@ sub receive_read($self,$fh){
 	    };
 	};
 
-	# stäng om ingen rättighet alls
+	# close if no permission at all
 	if(!($accept->{read} or $accept->{write})){
 	    main::lm("denied connect from ".$client_fh->peerhost(),$self->service(),"warning");
 	    $client_fh->shutdown(2);
@@ -121,5 +121,5 @@ sub receive_read($self,$fh){
     };
 };
 
-# ---- init av paket ----
+# ---- package init ----
 return 1;

@@ -31,10 +31,9 @@ sub ip_reverse($ip){
 # ---- functions for sync DNS (only for use in startup phase) ----
 
 sub resolved($name){
-    # retur : name till array med ip om det inte redan är det
-    # effekt: sätter undantag om inget hittat
-    
-    
+    # return: name to array with ip addresses (if not already address)
+    # effect: raises exception if nothing found
+        
     $name=~/^[\d\.\:\/]+$/ and return $name;
     my $names=name_to_ips($name);
     defined($names->[0]) or main::error("no IP found for $name");
@@ -42,13 +41,13 @@ sub resolved($name){
 };
 
 sub ip_to_name($ip){
-    # retur: ev värdnamn för ip
+    # return: possible host name for ip
     my $ip_n=inet_aton($ip);
     return gethostbyaddr($ip_n,AF_INET);
 };
 
 sub name_to_ips($name){
-    # retur: arrayref med ev ip för name
+    # return: array ref with possible ip addresses for name
     my @addr;
     (undef,undef,undef,undef,@addr)=gethostbyname($name);
     return [map {inet_ntoa($_)} @addr];
@@ -60,8 +59,8 @@ my $sockets={};
 my $cache=Cache::MemoryCache->new({default_expires_in => 600});
 
 sub dns_lookup($query,$next){
-    # effect: lookup query, call next with resulting Net::DNS::Packet
-    #         call with undef if no answer within time limit
+    # effect: looks up query, calls next with resulting Net::DNS::Packet
+    #         calls with undef if no answer within time limit
 
     # check cache
     my $response=$cache->get($query);
@@ -96,7 +95,7 @@ sub dns_lookup($query,$next){
 };
 
 sub ip_to_name_next($ip,$next){
-    # effect: run next with name for ip
+    # effect: runs next with name for ip
     #         if no name was found, use ''
     #         if no reply received, use unsef
 
@@ -112,7 +111,7 @@ sub ip_to_name_next($ip,$next){
 };
 
 sub name_to_ips_next($name,$next){
-    # effect: run next with ip addresses for name (arrayref, possibly empty)
+    # effect: runs next with ip addresses for name (arrayref, possibly empty)
     #         if no reply received, use unsef
 
     return dns_lookup($name,sub{
@@ -130,22 +129,22 @@ sub name_to_ips_next($name,$next){
 };
 
 sub verified_domain_next($ip,$next){
-    # effect: run next with domain for ip, or ip. domain is used if
+    # effect: runs next with domain for ip, or ip. domain is used if
     #         forward and reverse matches, and ip is not dynamic
     #         if no reply received, use unsef
 
     is_dynamic_next($ip,sub{
-	# dynamisk adress räknas alltid som utan gemensam domän
+	# dynamic addresses alway counted by itself, with no domain reputation
 	my $res=shift();
 	$res and return &$next($ip);
 	
 	ip_to_name_next($ip,sub{
-	    # slår upp namn
+	    # resolves name
 	    my $name=shift();
 	    defined($name) or return &$next(undef);
 	    $name eq '' and return &$next($ip);
 
-	    # använd domän om ip matchar
+	    # uses domain if IP matches
 	    name_to_ips_next($name,sub{
 		my $ips=shift();
 		defined($ips) or return &$next(undef);
@@ -158,10 +157,10 @@ sub verified_domain_next($ip,$next){
     });
 };
 
-# -- BL-uppslagning --
+# -- blacklist resolution --
 
 sub bl_lookup_next($ip,$bl,$next){
-    # effect: run next with ip looked up i bl (arrayref, possibly empty)
+    # effect: runs next with ip looked up i bl (arrayref, possibly empty)
     #         if no reply received, use unsef
 
     if($ip=~/^(?:10\.|172.(?:16|17|17|19|2?|30|31)|192\.168\.|127\.)/){
@@ -175,12 +174,12 @@ sub bl_lookup_next($ip,$bl,$next){
 };
 
 sub is_dynamic_next($ip,$next){
-    # effekt: check if ip is dynamic run next with result
-    #         if no reply could be determined, use unsef
+    # effect: checks if ip is dynamic, runs next with result
+    #         if no reply could be determined, use undef
 
     my $done={};
 
-    # kör båda uppslagningarna samtidigt
+    # run both lookups concurrently
     ip_to_name_next($ip,sub{
 	my $name=shift();
 	if(defined($name)){
@@ -204,7 +203,7 @@ sub is_dynamic_next($ip,$next){
 };
 
 sub is_dynamic_if_ready($done,$next){
-    # effect: run next with result from done
+    # effect: runs next with result from done
 
     if(exists($done->{name}) and exists($done->{dul})){
 	if($done->{name} or $done->{dul}){
@@ -218,8 +217,8 @@ sub is_dynamic_if_ready($done,$next){
 };
 
 sub dnswl_score_next($ip,$next){
-    # effekt: check dnswl score for ip, run next with result
-    #         if no reply received, use unsef
+    # effect: checks dnswl score for ip, run next with result
+    #         if no reply received, use undef
 
     bl_lookup_next(
 	$ip,'list.dnswl.org',sub{
