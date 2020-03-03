@@ -29,7 +29,7 @@ sub remove;
 our $debug=0;
 our $dir;
 
-my $version='__VERSION__';
+my $version='_VERSION_';
 my $show={};
 my $scores;
 my $calc;

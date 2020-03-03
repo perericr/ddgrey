@@ -23,7 +23,7 @@ our @on_done;
 our $debug=0;
 our $dir;
 
-my $version='__VERSION__';
+my $version='_VERSION_';
 
 # signal handlers
 # $|=1;
