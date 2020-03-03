@@ -1,4 +1,4 @@
- # ---- class GreylistClientConnection ----
+# ---- class GreylistClientConnection ----
 # client connection to greylist server
 
 package DDgrey::GreylistClientConnection;

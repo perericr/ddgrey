@@ -1,4 +1,4 @@
- # ---- class GreylistClientConnection ----
+ # ---- class ClientConnection ----
 # base class for client connection to this server via TCP or UNIX socket
 
 package DDgrey::ClientConnection;
@@ -26,7 +26,7 @@ sub new($class,$server,$fh){
     $self->{fh}=$fh;
     $self->{server}=$server;
     $self->{service}=$server->service();
-    $self->{closing}=0;
+    $self->{closing}=0;      # 1 if closing, 2 if closing and no write possible
     $self->{pending_send}=0; # number of concurrent tasks resulting in data
 
     # set client id to save
@@ -139,7 +139,8 @@ sub handle_exception($self){
 	if($self->{pending_send} > 0){
 	    $main::debug and main::lm("connection closed from ".$self->client_id().", waiting for data",$self->service());
 	    $main::select->unregister($self->{fh},1,0);
-	    $self->{closing}=1;
+	    # mark as closing, no write possible
+	    $self->{closing}=2;
 	}
 	else{
 	    $main::debug and main::lm("connection closed from ".$self->client_id().", closing",$self->service());
@@ -156,7 +157,9 @@ sub send($self,$line;$next){
     # effect: sends line to client, run next when sent
     
     $main::debug > 2 and main::lm("sending ".$line=~s/[\r\n]+$//r,$self->service());
-    $main::select->write($self->{fh},$line,$next);
+    if(($self->{closing} // 0) < 2){
+	$main::select->write($self->{fh},$line,$next);
+    };
     if($self->{closing} and $self->{pending_send}==0){
 	$main::debug and main::lm("last data sent, closing connection to ".$self->client_id(),$self->service());
 	$self->close();

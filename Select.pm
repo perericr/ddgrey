@@ -18,7 +18,7 @@ sub new($class){
     # effect: may raise exception
 
     my $self={};
-    $self->{closing}=0;
+    $self->{closing}=0; # 1 = main select loop should quit
     $self->{select}=IO::Select->new();
     $self->{select} or main::error("can't start select ($!)");
     $self->{write_select}=IO::Select->new();

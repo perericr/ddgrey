@@ -107,7 +107,7 @@ sub handle_command($self,$item){
 	    @list=DDgrey::Report->list($arg);
 	};
 
-	# send start and possibly existing reports
+	# send start, possibly starting with existing reports
 	$self->send("302 document following (interrupt with single dot)\r\n");
 	foreach my $l (@list){
 	    my $report=DDgrey::Report->get($l->{id});
@@ -130,9 +130,18 @@ sub handle_command($self,$item){
     return "500 unknown command\r\n";
 };
 
+sub close($self){
+    # effect: deregisters where registered and closes
+
+    if($self->{subscription}){
+	$main::dispatcher->unregister_subscriber($self->{subscription});
+    };
+    return $self->SUPER::close();
+};
+
 sub handle_subscribe($self){
     # return: status line
-    # effect: handles subscription
+    # effect: handles end of subscription command
     # pre   : subscription is active
 
     $main::dispatcher->unregister_subscriber($self->{subscription});
