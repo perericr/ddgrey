@@ -1,11 +1,9 @@
-
 prio 1
 ======
 ? koll av config-argument
 ? säkerställ fortsatt körning vid fel
 ? Exim4: tolka logg-datum i rätt tidszon
-* send() is deprecated on :utf8 handles. This will be a fatal error in Perl 5.30 at /usr/lib/x86_64-linux-gnu/perl/5.28/IO/Socket.pm line 283
-* DBD::SQLite::st execute failed: unable to open database file at /usr/lib/site_perl/DDgrey/DB/SQLite.pm line 79, <$fh> line 26. at /usr/lib/site_perl/DDgrey/DBModel.pm line 60 at /usr/lib/site_perl/DDgrey/DBModel.pm line 60
+T DBD::SQLite::st execute failed: unable to open database file at /usr/lib/site_perl/DDgrey/DB/SQLite.pm line 79, <$fh> line 26. at /usr/lib/site_perl/DDgrey/DBModel.pm line 60 at /usr/lib/site_perl/DDgrey/DBModel.pm line 60
 
 
 prio 2
@@ -34,3 +32,4 @@ X koll av argument till ny rapport
 X ta bort push och bara ha pull?
 ? byt protkoll från \n till \r\n
 ? hantera manuell spam-rapportering
+X send() is deprecated on :utf8 handles. This will be a fatal error in Perl 5.30 at /usr/lib/x86_64-linux-gnu/perl/5.28/IO/Socket.pm line 283

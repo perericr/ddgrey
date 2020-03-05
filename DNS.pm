@@ -73,6 +73,7 @@ sub dns_lookup($query,$next){
     $main::debug > 1 and main::lm("sending query $query","dns");
     my $socket=$resolver->bgsend($query);
     if(!defined($socket)){
+	$main::debug > 1 and main::lm("could not initiate query $query","dns");
 	return &$next(undef);
     };
     $main::select->register_read_and_exception($socket,sub{

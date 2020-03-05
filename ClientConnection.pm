@@ -27,6 +27,7 @@ sub new($class,$server,$fh){
     $self->{server}=$server;
     $self->{service}=$server->service();
     $self->{closing}=0;      # 1 if closing, 2 if closing and no write possible
+                             # 3 if closed and unregistered from server
     $self->{pending_send}=0; # number of concurrent tasks resulting in data
 
     # set client id to save
@@ -128,14 +129,18 @@ sub close($self){
     $self->{fh}->shutdown(2);
     $self->{fh}->close();
     $main::debug and main::lm("closed connection from ".$self->client_id(),$self->service());
+    
     # delete server pointer to avoid circular references
     delete($self->{server});
+    # mark as closed
+    $self->{closing}=3;
 };
 
 sub handle_exception($self){
     # effect: handles exception from select
-    
-    if($self->{fh}->connected() and $self->{fh}->eof()){
+
+    if($self->{fh}->eof()){
+	# connection closed
 	if($self->{pending_send} > 0){
 	    $main::debug and main::lm("connection closed from ".$self->client_id().", waiting for data",$self->service());
 	    $main::select->unregister($self->{fh},1,0);
@@ -148,6 +153,7 @@ sub handle_exception($self){
 	};
     }
     else{
+	# other exception
 	$main::debug and main::lm("connection exception from ".$self->client_id(),$self->service());
 	$self->close();
     };
@@ -156,10 +162,19 @@ sub handle_exception($self){
 sub send($self,$line;$next){
     # effect: sends line to client, run next when sent
     
-    $main::debug > 2 and main::lm("sending ".$line=~s/[\r\n]+$//r,$self->service());
     if(($self->{closing} // 0) < 2){
+	$main::debug > 2 and main::lm("sending ".$line=~s/[\r\n]+$//r,$self->service());
 	$main::select->write($self->{fh},$line,$next);
+    }
+    else{
+	$main::debug > 2 and main::lm("not sending (because of closing) ".$line=~s/[\r\n]+$//r,$self->service());
     };
+    $self->close_if_done();
+};
+
+sub close_if_done($self){
+    # effect: close if no pending_send and closing requested
+
     if($self->{closing} and $self->{pending_send}==0){
 	$main::debug and main::lm("last data sent, closing connection to ".$self->client_id(),$self->service());
 	$self->close();

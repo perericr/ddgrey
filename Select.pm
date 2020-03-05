@@ -6,6 +6,7 @@ package DDgrey::Select;
 use strict;
 use integer;
 
+use Encode qw(encode decode);
 use Data::Dumper; # DEBUG
 use IO::Select;
 use List::MoreUtils qw(uniq);
@@ -23,7 +24,7 @@ sub new($class){
     $self->{select} or main::error("can't start select ($!)");
     $self->{write_select}=IO::Select->new();
     $self->{write_select} or main::error("can't start select ($!)");
-    $self->{read_more}={};
+    $self->{read_more}={}; # internal mark of more to read, from register_line
 
     # max waiting time (can be shorter by specific instructions)
     $self->{sleep}=5;
@@ -58,6 +59,7 @@ sub register_read_and_exception($self,$fh,$f,$timeout){
 
 sub register_line($self,$fh,$f){
     # effect: registers fh with select, using f for handling lines read from fh
+    #         lines will be decoded from UTF-8
     # pre   : fh is set to non-blocking
 
     $self->{select}->add($fh);
@@ -66,11 +68,20 @@ sub register_line($self,$fh,$f){
 	    $fh->eof() and return $self->handle_exception($fh);
 	};
 
-	if(defined(my $line=$fh->getline())){
-	    # # mark possibly more lines
+	if(defined(my $b_line=$fh->getline())){
+	    # decode
+	    my $line=eval{decode('UTF-8',$b_line)};
+	    if($@){
+		# warn if decode error
+		main::lm("decode error on $fh ($@)",undef,"warning");
+	    }
+	    else{
+		# else, run line handler
+		&$f($line);
+	    };
+	    
+	    # mark possibly more lines
 	    $self->{read_more}->{$fh}=$fh;
-	    # run
-	    &$f($line);
 	}
 	else{
 	    # remove mark for possibly more lines
@@ -204,8 +215,13 @@ sub run_once($self,$sleep){
     
     # readable file handles
     foreach my $fh (uniq(@$read,keys %{$self->{read_more}})){
-	defined(my $f=$self->{read_handler}->{$fh}) or next;
-	&$f($fh);
+       	if(defined(my $f=$self->{read_handler}->{$fh})){
+	    &$f($fh);
+	}
+	else{
+	    delete $self->{read_more}->{$fh};
+	    next;
+	};
     };
     
     # check timers
@@ -232,7 +248,7 @@ sub run_once($self,$sleep){
 };
 
 sub write($self,$fh,$line;$next){
-    # effect: writes line to fh (or add tu buffer)
+    # effect: writes line to fh (or add to buffer)
     #         runs next when sent
     
     $self->{write_select}->exists($fh) or $self->{write_select}->add($fh);
@@ -254,7 +270,8 @@ sub run_write($self,$write){
 	    }
 	    else{
 		# otherwise, write
-		my $sent=$fh->connected() ? $fh->send($f) : undef;
+		my $u=encode('UTF-8',$f);
+		my $sent=$fh->connected() ? ($fh->send($u)) : undef;
 		if(defined($sent)){
 		    if($sent == length($f)){
 			$fh->flush();
@@ -266,7 +283,7 @@ sub run_write($self,$write){
 		    }
 		}
 		else{
-		    main::lm("could not write to $fh",undef,"warning");
+		    $main::debug and main::lm("could not write to $fh",undef);
 		    unshift @{$self->{write_buffer}->{$fh}},$f;
 		    last CHUNK;
 		};
@@ -293,7 +310,11 @@ sub load($self){
 sub handle_exception($self,$fh){
     # effect: handles exception (often closed connection) on fh
 
+    # remove mark of more to read
+    delete $self->{read_more}->{$fh};
+    
     if(defined($self->{exception_handler}->{$fh})){
+	# run registered handler
 	return &{$self->{exception_handler}->{$fh}}($fh);
     }
     else{

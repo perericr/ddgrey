@@ -62,8 +62,7 @@ sub receive_read($self,$fh){
 	$client_fh->autoflush(1);
 	$client_fh->blocking(0);
 	$client_fh->timeout($main::debug ? 5 : 60);
-	binmode($client_fh,":encoding(UTF-8)");
-
+ 
 	my $accept={read=>1,write=>1};
 	my $client=DDgrey::SyncClientConnection->new($self,$client_fh,$accept);
     };

@@ -28,6 +28,7 @@ my $version='_VERSION_';
 # signal handlers
 # $|=1;
 $SIG{CHLD}='IGNORE'; # automatic closing
+$SIG{PIPE}='IGNORE'; 
 $SIG{TERM}=sub{daemon_close('TERM')};
 $SIG{INT}=sub{daemon_close('INT')};
 # $SIG{__DIE__} = sub { Carp::confess @_ }; # DEBUG

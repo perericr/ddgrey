@@ -5,6 +5,7 @@ package DDgrey::Run;
 
 use Data::Dumper; # DEBUG
 use DDgrey::Perl6::Parameters;
+use Encode qw(encode decode);
 use Sys::Syslog;
 
 use parent qw(Exporter);
@@ -35,10 +36,13 @@ sub lm($m;$system,$cat){
     $cat //= "info";
     $system and $m="$system: $m";
     $cat eq 'info' or $m="[$cat] $m";
+    # encode
+    my $b_m=encode('UTF-8',$m);
+    # send
     if($main::debug){
-	warn("$m\n");
+	warn("$b_m\n");
     };
-    $syslog_started and syslog($cat,$m);
+    $syslog_started and syslog($cat,$b_m);
     
     return 1;
 };
@@ -48,9 +52,11 @@ sub error($m;$system){
     $cat="error";
     $system and $m="$system $m";
     $m="[error] $m";
-
-    $syslog_started and syslog("err",$m);
-    die("$m\n");
+    # encode
+    my $b_m=encode('UTF-8',$m);
+    # send
+    $syslog_started and syslog("err",$b_m);
+    die("$b_m\n");
 };
 
 # ---- package init ----

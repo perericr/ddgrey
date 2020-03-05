@@ -62,12 +62,19 @@ sub handle_command($self,$item){
 	my $arg=($item->{arg}->[0] or 0);
 	$arg=~/^\d+$/ or return "500 bad argument\r\n";
 	my @list=DDgrey::Report->list($arg);
+	# yield (and catch possible closed connection)
+	$main::select->run_once(0);
 	$self->send("300 document following\r\n");
+	$self->{pending_send}++;
 	for my $l (@list){
+	    # quit if closing
+	    $self->{closing} and last;
+	    # send
 	    $self->send($l->{id}."\t".$l->{origin}."\t".$l->{origin_id}."\t".$l->{stored}."\r\n");
-	    # if several sent at the same time
-	    $main::select->run_write([$self->{fh}]);
+	    # yield and write
+	    $main::select->run_once(0);
 	};
+	$self->{pending_send}--;
 	return ".\r\n";
     };
 
@@ -109,12 +116,17 @@ sub handle_command($self,$item){
 
 	# send start, possibly starting with existing reports
 	$self->send("302 document following (interrupt with single dot)\r\n");
+	$self->{pending_send}++;
 	foreach my $l (@list){
+	    # quit if closing
+	    $self->{closing} and last;
 	    my $report=DDgrey::Report->get($l->{id});
 	    $self->send_report($report);
-	    # if several sent at the same time
-	    $main::select->run_write([$self->{fh}]);
+	    # yield and write
+	    $main::select->run_once(0);
 	};
+	$self->{pending_send}--;
+	$self->close_if_done();
 	return;
     };
     

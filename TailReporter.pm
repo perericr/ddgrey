@@ -104,8 +104,10 @@ sub register($self){
 sub close($self){
     # effect: closes
 
-    $main::select->unregister($self->{fh});
-    $self->{fh}->close();
+    if(defined($self->{fh})){
+	$main::select->unregister($self->{fh});
+	$self->{fh}->close();
+    };
 };
 
 sub process_line($self,$line){

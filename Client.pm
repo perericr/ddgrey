@@ -118,7 +118,6 @@ sub ensure_connected($self){
 	$self->{fh}->autoflush(0);
 	$self->{fh}->blocking(0);
 	$self->{fh}->timeout($main::debug ? 5 : 60);
-	binmode($self->{fh},":encoding(UTF-8)");
 	$main::select->register_line($self->{fh},sub{$self->receive_line(@_)});
 	$main::select->register_exception($self->{fh},sub{
 	    main::lm("disconnected from server ".($self->{socket} // $self->{host}),$self->service(),"warning");
