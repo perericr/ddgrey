@@ -13,7 +13,8 @@ use DDgrey::Perl6::Parameters;
 
 use parent qw(DDgrey::TailReporter);
 
-my $ip_re='[\d\.\:]+';
+# my $ip_re='[\d[a-f]\.\:]+'; # when IPV6 is supported
+my $ip_re='[\d\.]+';
 my $host_re='(?:\S+\s+\(\S+\)|\S+)\s+\[('.$ip_re.')\]';
 
 # ---- constructor ----
@@ -58,6 +59,54 @@ sub receive_line($self,$line){
     if($line=~/^unexpected disconnection while reading SMTP command from $host_re \(error: Connection reset by peer\)/){
 	my $report=DDgrey::Report->new({
 	    event=>'disconnect',
+	    ip=>$1,
+	    time=>$time,
+	    reporter=>"exim4"
+        });
+	$self->report($report);
+	return;
+    };
+
+    # no MAIL command received 
+    if($line=~/^no MAIL in SMTP connection from $host_re D=/){
+	my $report=DDgrey::Report->new({
+	    event=>'smtp_no_mail',
+	    ip=>$1,
+	    time=>$time,
+	    reporter=>"exim4"
+        });
+	$self->report($report);
+	return;
+    };
+
+    # no waitng from greeting
+    if($line=~/^SMTP protocol synchronization error \(input sent without waiting for greeting\)\: rejected connection from H=$host_re/){
+	my $report=DDgrey::Report->new({
+	    event=>'smtp_no_wait',
+	    ip=>$1,
+	    time=>$time,
+	    reporter=>"exim4"
+        });
+	$self->report($report);
+	return;
+    };
+    
+    # connection lost in middle of transaction
+    if($line=~/^H=$host_re incomplete transaction \(RSET\)/){
+	my $report=DDgrey::Report->new({
+	    event=>'smtp_rset',
+	    ip=>$1,
+	    time=>$time,
+	    reporter=>"exim4"
+        });
+	$self->report($report);
+	return;
+    };
+    
+    # lost connection in middle of transaction
+    if($line=~/^H=$host_re incomplete transaction \(connection lost\)/){
+	my $report=DDgrey::Report->new({
+	    event=>'smtp_connection_lost',
 	    ip=>$1,
 	    time=>$time,
 	    reporter=>"exim4"

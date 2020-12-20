@@ -33,7 +33,7 @@ sub new($class){
 
     my $port=($main::config->{port} or ($< ? 1722 : 722));
     for my $n (0..20){
-	$self->{fh}=IO::Socket::INET->new(Listen=>10,Proto=>'tcp',LocalPort=>$port) and last;
+	$self->{fh}=IO::Socket::INET->new(Listen=>10,Proto=>'tcp',LocalPort=>$port,ReusePort=>1) and last;
 	main::lm("can't start server on port $port ($!), trying again",$self->service(),'warning');
 	sleep 5;	
     };

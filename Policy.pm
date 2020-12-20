@@ -448,12 +448,30 @@ sub update_resolved($self,$next){
 	$scores->{relay}=-60*($count);
     };
 
-    # -- disconnect --
+    # -- disconnect and other SMTP violations --
     
     $count=DDgrey::Report->count_grouped($self->{ip},'disconnect',time()-$search_duration,time());
     if($count > 0){
 	$reasons->{disconnect}='disconnect';
 	$scores->{disconnect}=max(-10*($count),-50);
+    };
+    
+    $count=DDgrey::Report->count_grouped($self->{ip},'smtp_no_mail',time()-$search_duration,time());
+    if($count > 0){
+	$reasons->{smtp_no_mail}='SMTP connection without mail';
+	$scores->{smtp_no_mail}=max(-20*($count),-60);
+    };
+
+    $count=DDgrey::Report->count_grouped($self->{ip},'smtp_connection_lost',time()-$search_duration,time());
+    if($count > 0){
+	$reasons->{smtp_no_wait}='SMTP lost connection during transaction';
+	$scores->{smtp_no_wait}=max(-10*($count),-30);
+    };
+    
+    $count=DDgrey::Report->count_grouped($self->{ip},'smtp_rset',time()-$search_duration,time());
+    if($count > 0){
+	$reasons->{smtp_no_wait}='SMTP RSET during transaction';
+	$scores->{smtp_no_wait}=max(-20*($count),-40);
     };
 
     # -- conclude and make delay durations or blacklist --
