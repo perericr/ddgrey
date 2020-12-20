@@ -35,7 +35,7 @@ sub update_fetched($class,$name,$time){
     
     my $self=($db->query_first("select * from sync where name=?",$name) // {name=>$name});
     bless($self,$class);
-    if($time > $self->{last} // 0){
+    if($time > ($self->{last} // 0)){
 	$self->{last}=$time;
     };
     $self->save();

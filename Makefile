@@ -59,7 +59,7 @@ endif
 BIN     = $(addprefix build-tmp/,ddgrey ddgrey-report)
 SBIN    = $(addprefix build-tmp/,ddgreyd)
 PERLLIB	= $(addprefix build-tmp/,Client.pm ClientConnection.pm Config.pm DBModel.pm DBStore.pm Dispatcher.pm DNS.pm Exim4.pm GreylistClientConnection.pm GreylistServer.pm LocalServer.pm MainConfig.pm Parameters.pm Policy.pm ReadClient.pm RemoteServer.pm Report.pm ReportClient.pm Reporter.pm Run.pm Select.pm Server.pm SQLite.pm Sync.pm SyncClientConnection.pm TailReporter.pm Traps.pm)
-CONFIG  = $(addprefix build-tmp/,ddgrey.conf)
+CONFIG  = $(addprefix build-tmp/,ddgrey.conf spamtraps)
 DATA	= public_suffix_list.dat
 OBJ	= $(BIN) $(SBIN) $(PERLLIB) $(CONFIG)
 TMP     = build-tmp debian/ddgrey

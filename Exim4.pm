@@ -91,18 +91,6 @@ sub receive_line($self,$line){
 	return;
     };
     
-    # connection lost in middle of transaction
-    if($line=~/^H=$host_re incomplete transaction \(RSET\)/){
-	my $report=DDgrey::Report->new({
-	    event=>'smtp_rset',
-	    ip=>$1,
-	    time=>$time,
-	    reporter=>"exim4"
-        });
-	$self->report($report);
-	return;
-    };
-    
     # lost connection in middle of transaction
     if($line=~/^H=$host_re incomplete transaction \(connection lost\)/){
 	my $report=DDgrey::Report->new({

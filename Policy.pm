@@ -465,15 +465,9 @@ sub update_resolved($self,$next){
     $count=DDgrey::Report->count_grouped($self->{ip},'smtp_connection_lost',time()-$search_duration,time());
     if($count > 0){
 	$reasons->{smtp_no_wait}='SMTP lost connection during transaction';
-	$scores->{smtp_no_wait}=max(-10*($count),-30);
+	$scores->{smtp_no_wait}=max(-5*($count),-10);
     };
     
-    $count=DDgrey::Report->count_grouped($self->{ip},'smtp_rset',time()-$search_duration,time());
-    if($count > 0){
-	$reasons->{smtp_no_wait}='SMTP RSET during transaction';
-	$scores->{smtp_no_wait}=max(-20*($count),-40);
-    };
-
     # -- conclude and make delay durations or blacklist --
 
     $self->{reason}=(join(',',sort values %{$reasons}) or 'basic');

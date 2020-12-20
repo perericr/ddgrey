@@ -27,7 +27,7 @@ SpamAssisin will check message reputation (where address is only a small part).
 
 Credits and copyright
 =====================
-© 2017 Per Eric Rosén (per@rosnix.net). Distributed under GNU GPL 3.0.
+© 2020 Per Eric Rosén (per@rosnix.net). Distributed under GNU GPL 3.0.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -85,10 +85,13 @@ If you have other ddgrey servers you wish to communicate with,
 add lines "peer = <hostname>" to /etc/ddgrey/ddgrey.conf for each server.
 Please ensure in your firewall that they can reach each other on TCP port 722.
 
+ddgrey has no built-in authentication mechanism. Ensure that you only
+add trusted hosts, for example from an internal VPN.
+
 using spamtraps
 ---------------
 If you wish to set up spamtraps, add the trap addresses to your aliases files
-piped to /dev/null, like "trap.trapson: /dev/null"
+piped to /dev/null, like "trap.trapson: /dev/null".
 
 Add the fully qualified trap addresses to /etc/ddgrey/spamtraps. The format is
 similiar to an aliases file with lines like:
@@ -118,11 +121,13 @@ are listed with a line "trusted = <ip or network>" in ddgrey.conf.
 If you wish to send feedback on unparseable spam reports, please add
 "return_output = true" to the pipe transport for your alises file. 
 
+
 Configuration directives
 ========================
 Configuration is done in /etc/ddgrey/ddgrey.conf.
 
-The only variables you usually need changing are
+The only variables you usually need changing are:
+
 peer	hostname of cooperating ddgrey servers (usually on your other MX)
 service	"exim4" to follow exim4 log files
 
@@ -218,8 +223,8 @@ check_and_quit <ip> <from> <to>
 quit
     close the connection
 
-Protocol for greylist and peering (SMTP-like)
-=============================================
+Protocol for peering (SMTP-like)
+================================
 
 list [<t>]
     list reports on server (possibly from timestamp <t>)
