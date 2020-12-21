@@ -20,11 +20,8 @@ use DDgrey::Traps qw($traps);
 
 use parent qw(DDgrey::DBModel);
 
-my $search_duration;
-my $trusted;
-
-# plugins for checking (traps, unknown recipients ...)
-our @check_plugin=();
+our $search_duration;
+our $trusted;
 
 # description
 our $table='policy';
@@ -261,7 +258,6 @@ sub update_resolved($self,$next){
     $main::debug and main::lm("updating policy for $self->{ip}","policy");
 
     # duration constants
-    my $search_duration=$main::config->{search_duration} // 60*60*24*60;
     my $policy_duration=$main::config->{policy_duration} // 60*60*24*7;
     my $grey_min=$main::config->{grey_min} // 10;
     my $grey_short=$main::config->{grey_short} // 60*10;
@@ -281,7 +277,7 @@ sub update_resolved($self,$next){
 
     # -- IP reputation from external services --
 
-    # sätt prel om domän är preliminär
+    # mark policy as preliminary if domain is unresolved
     if(!defined($self->{resolved})){
 	$self->set_prel();
     };
@@ -497,7 +493,7 @@ sub update_resolved($self,$next){
 
     $main::debug and main::lm("updated policy for $self->{ip} to score: $self->{score} reason: $self->{reason}","policy");
 
-    # continues
+    # continue
     &$next();
 };
 

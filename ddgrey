@@ -10,27 +10,32 @@ use Carp;
 use Data::Dumper; # DEBUG
 use Getopt::Long;
 use IO::Socket;
-use POSIX qw(setsid);
+use POSIX qw(setsid strftime);
 use DDgrey::Perl6::Parameters;
 
 use DDgrey::MainConfig;
 use DDgrey::Dispatcher;
 use DDgrey::Policy;
 use DDgrey::Select;
+use DDgrey::DNS;
 
 sub lm;
 sub error;
-sub calc_report;
-sub report;
-sub remove;
+sub policy_calc;
+sub policy_report;
+sub policy_remove;
+sub event_report;
 
 # ---- init ----
 
+our @on_done;
 our $debug=0;
 our $dir;
 
 my $version='_VERSION_';
 my $show={};
+my $events;
+my $policies;
 my $scores;
 my $calc;
 my $remove;
@@ -50,13 +55,14 @@ GetOptions(
     	print "-h --help    show this help text\n";
     	print "-V --version show version\n";
     	print "-r --remove  remove policy\n";
-    	print "-c --calc    calculate policy\n";
+    	print "-c --calc    calculate policy if missing\n";
     	print "\n";
     	print "options:\n";
     	print "-w --white   show whitelist\n";
     	print "-g --grey    show greylist\n";
     	print "-b --black   show blacklist\n";
-    	print "-s --scores   show scores\n";
+    	print "-s --scores  show scores\n";
+    	print "-e --events  show events\n";
     	print "-d --debug   increase debug information\n";
     	print "-D --dir <D> look for config and other files in <D>\n";
     	exit 0;
@@ -64,18 +70,32 @@ GetOptions(
     'V|version'=>sub{print "$version\n";exit 0},
     # end genop generated section
     'r|remove'=>\$remove,       # remove policy
-    'c|calc'=>\$calc,           # calculate policy
+    'c|calc'=>\$calc,           # calculate policy if missing
     
     # l=options
     'w|white'=>\$show->{white}, # show whitelist
     'g|grey'=>\$show->{grey},   # show greylist
     'b|black'=>\$show->{black}, # show blacklist
     's|scores'=>\$scores,       # show scores
+    'e|events'=>\$events,       # show events
     'd|debug'=>sub{$debug++},	# increase debug information
     'D|dir=s'=>\$dir,	        # look for config and other files in <D>
     ) or error("bad command line");
 
 my $host=shift();
+
+# check arguments
+if($calc and ($show->{black} or $show->{grey} or $show->{white})){
+    error("argument error: -c can not be combined with filter arguments");
+};
+# show policy if filter selected
+if($show->{black} or $show->{grey} or $show->{white}){
+    $policies=1;
+};
+# default action: show policy
+if(!$events and !$policies){
+    $policies=1;
+};
 
 # read configuration
 our $config=DDgrey::MainConfig->new();
@@ -89,23 +109,25 @@ if($< == 0){
     defined($uid) or main::error("error: no such user $user");
 };
 
-# -- start select --
+# -- start services --
 our $select=DDgrey::Select->new();
 
-# -- start store --
 use DDgrey::DBStore qw($db);
 our $store=DDgrey::DBStore->init();
 
+# run pending init tasks
+for my $s (@on_done){
+    &$s();
+};
+
 # ---- main ----
 
-# make where-clauses for show command
-my $where_report=[];
+# make where-clauses for various commands
 my $where=[];
-my $args_report=[];
 my $args=[];
 
 my @show=();
-if(keys %$show){
+if($show->{black} or $show->{grey} or $show->{white}){
     $show->{black} and push @show,'black IS NOT NULL';
     $show->{grey} and push @show,'grey IS NOT NULL';
     $show->{white} and push @show,'(grey IS NULL and black IS NULL)';
@@ -113,43 +135,85 @@ if(keys %$show){
 if(@show){
 	push @$where,'('.join(' OR ',@show).')';
 };
+
+my $host_ip;
+
 if(defined($host)){
     if($host=~/^[\d\.]+$/){
-	push @$where_report,"ip LIKE ?";
-	push @$where,"ip LIKE ?";
-	push @$args_report,"$host%";
-	push @$args,"$host%";
+	$main::debug > 0 and main::lm("matching ip ".$host);
+	push @$where,"ip=?";
+	push @$args,$host;
+	$host_ip=$host;
     }
     else{
-	push @$where_report,"domain=?";
+	$main::debug > 0 and main::lm("matching existing reports from domain ".$host);
 	push @$where,"domain=?";
- 	push @$args_report,$host;
  	push @$args,$host;
     };
 };
 
-# first removes
+# remove policy
+$main::debug > 0 and main::lm("removing old policies");
 if($remove){
-    remove($where,$args);
+    policy_remove($where,$args);
 };
 
-# recalculate if asked for, then report
+# recalculate, then report
+my $r=sub(){
+    if($policies){
+	$main::debug > 0 and main::lm("reporting policies");
+	policy_report($where,$args);
+    }
+};
+
 if($calc){
-    calc_report($where_report,$args_report,$where,$args);
+    $main::debug > 0 and main::lm("calculating policies");
+    policy_calc($where,$args,$host_ip,$r);
 }
 else{
-    report($where,$args);
+    &$r();
 };
 
-# ---- functions ----
+# show events
+if($events){
+    $main::debug > 0 and main::lm("reporting events");
+    event_report($where,$args);
+};
 
-sub remove($where,$args){
+# ---- UI functions ----
+
+sub lm($m){
+    # effect: log message m
+    warn "$m\n";
+    return 1;
+};
+
+sub error($m;$system){
+    # effect: log message m, die
+    $system and $m="$system: $m";
+    die "$m\n";
+};
+
+# ---- functions for policy ----
+
+sub policy_remove($where,$args){
     $db->query('delete from policy '.(@$where ? 'where ('.join(' AND ',@$where).') ' : ''),@$args);
 };
 
-sub calc_report($where_report,$args_report,$where,$args){
-    # effekt: print report for hosts in domain, calculate if missing
-    my @ips=$db->query_all_one('select ip from report '.(@$where_report ? 'where ('.join(' AND ',@$where_report).') ' : '').' group by ip order by ip',@$args_report);
+sub policy_calc($where,$args,$host_ip,$next){
+    # effect: calculate policy if missing
+    #         for hosts in reports selected by where and args
+    #         and host_ip if defined
+    #         run next when done
+
+    # get ip addresses
+    my @ips=$db->query_all_one('select ip from report '.(@$where ? 'where ('.join(' AND ',@$where).') ' : '').' group by ip order by ip',@$args);
+
+    if(defined($host_ip)){
+	push @ips,$host_ip;
+    };
+
+    # calculate
     my $done={};
     for my $ip (@ips){
 	$done->{$ip}=undef;
@@ -158,37 +222,37 @@ sub calc_report($where_report,$args_report,$where,$args){
 	if($main::select->load()){
 	    sleep 1;
 	};
-	DDgrey::Policy->ensure_policy($ip,sub{calc_report_done($where,$args,$ip,$done)});
+	DDgrey::Policy->ensure_policy($ip,sub{policy_calc_done($ip,$done,$next)});
 	$select->run_once(0);
     };
     if(@ips){
 	$select->run();
     }
     else{
-	report($where,$args);
+	&$next();
     };
 };
 
-sub calc_report_done($where,$args,$ip,$done){
-    # effekt: runs report with where och args if all ip in done
+sub policy_calc_done($ip,$done,$next){
+    # effekt: runs next if all ip in done
     #         are marked as done. marks ip as done
 
     $done->{$ip}=1;
     if(not grep {!defined($done->{$_})} keys %$done){
-	report($where,$args);
+	&$next();
 	$select->exit();
     };
 };
 
-sub report($where,$args){
+sub policy_report($where,$args){
     # effect: print reports matching where and args
-    print head();
+    print policy_report_head();
     for my $proto ($db->query_all('select * from policy '.(@$where ? 'where ('.join(' AND ',@$where).') ' : '').' order by domain,ip',@$args)){
-	print protofm($proto);
+	print policy_report_line($proto);
     };
 };
 
-sub head(){
+sub policy_report_head(){
     # return: report header
     if($scores){
 	return
@@ -202,7 +266,7 @@ sub head(){
     };
 };
 
-sub protofm($proto){
+sub policy_report_line($proto){
     # return: proto as a line for report
 
     my $s='';
@@ -224,6 +288,8 @@ sub protofm($proto){
     $s.=sprintf('%-9s',$w);
     $s.=$proto->{reason};
     $s.="\n";
+
+    return $r;
 };
 
 sub deltafm($s){
@@ -236,14 +302,44 @@ sub deltafm($s){
     };
 };
 
-sub lm($m){
-    # effect: log message m
-    warn "$m\n";
-    return 1;
+# ---- functions for events ----
+
+sub event_report($where,$args){
+    # effect: print reports matching where and args
+    print event_report_head();
+    for my $proto ($db->query_all('select * from report where time >= ?'.(@$where ? 'AND ('.join(' AND ',@$where).') ' : '').' order by time,domain,ip',time()-$DDgrey::Policy::search_duration,@$args)){
+	print event_report_line($proto);
+    };
 };
 
-sub error($m;$system){
-    # effect: log message m, die
-    $system and $m="$system: $m";
-    die "$m\n";
+sub event_report_head(){
+    # return: report header
+    return
+	"time              domain          ip              origin    event   \n".
+	"-------------------------------------------------------------------------------\n";
+ 
 };
+
+sub event_report_line($proto){
+    # return: proto as a line for report
+
+    my $s='';
+    $s.=timefm($proto->{time})." ";
+    $s.=sprintf('%-15s',$proto->{domain})." ";
+    $s.=sprintf('%-16s',$proto->{ip});
+    $s.=sprintf('%-9s',$proto->{origin})." ";
+    $s.=sprintf('%-16s',$proto->{event});
+    $s.="\n";
+    if($proto->{e_from} or $proto->{e_to}){
+	$s.=$proto->{e_from}." -> ".$proto->{e_to}."\n";
+    };
+    
+    return $s;
+};
+
+sub timefm($t){
+    # return: timestamp t human readable string
+    return strftime("%y-%m-%d %H:%M:%S",localtime($t));
+};
+
+

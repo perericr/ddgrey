@@ -188,7 +188,7 @@ sub is_dynamic_next($ip,$next){
 		$done->{name}=1;
 	    }
 	    else{
-		$done->{name}=($name=~/\b(?:host|cust|customers?|dyn|dynamic|static|bredband|broadband|dhcp|dialup|a?dsl)\b/ and !$name=~/\b(?:smtp|mail)\b/ and $name=~/\d+\D+\d+/);
+		$done->{name}=($name=~/\b(?:host|cust|customers?|priv|private|dyn|dynamic|static|bredband|broadband|dhcp|dialup|a?dsl)\b/ and !$name=~/\b(?:smtp|mail)\b/ and $name=~/\d+\D+\d+/);
 	    };
 	}
 	else{
