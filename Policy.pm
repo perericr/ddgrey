@@ -259,7 +259,7 @@ sub update_resolved($self,$next){
 
     # duration constants
     my $policy_duration=$main::config->{policy_duration} // 60*60*24*7;
-    my $grey_min=$main::config->{grey_min} // 10;
+    my $grey_min=$main::config->{grey_min} // 60*2;
     my $grey_short=$main::config->{grey_short} // 60*10;
     my $grey_default=$main::config->{grey_default} // 60*60*4;
     my $grey_long=$main::config->{grey_long} // 60*60*12;

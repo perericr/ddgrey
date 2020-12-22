@@ -88,6 +88,10 @@ my $host=shift();
 if($calc and ($show->{black} or $show->{grey} or $show->{white})){
     error("argument error: -c can not be combined with filter arguments");
 };
+if($events and ($show->{black} or $show->{grey} or $show->{white})){
+    error("argument error: -e can not be combined with filter arguments");
+};
+
 # show policy if filter selected
 if($show->{black} or $show->{grey} or $show->{white}){
     $policies=1;
@@ -158,21 +162,17 @@ if($remove){
     policy_remove($where,$args);
 };
 
-# recalculate, then report
-my $r=sub(){
-    if($policies){
-	$main::debug > 0 and main::lm("reporting policies");
-	policy_report($where,$args);
-    }
-};
-
+# calculate policy
 if($calc){
     $main::debug > 0 and main::lm("calculating policies");
-    policy_calc($where,$args,$host_ip,$r);
-}
-else{
-    &$r();
+    policy_calc($where,$args,$host_ip);
 };
+
+# report policy
+if($policies){
+    $main::debug > 0 and main::lm("reporting policies");
+    policy_report($where,$args);
+}
 
 # show events
 if($events){
@@ -200,11 +200,10 @@ sub policy_remove($where,$args){
     $db->query('delete from policy '.(@$where ? 'where ('.join(' AND ',@$where).') ' : ''),@$args);
 };
 
-sub policy_calc($where,$args,$host_ip,$next){
+sub policy_calc($where,$args,$host_ip){
     # effect: calculate policy if missing
     #         for hosts in reports selected by where and args
     #         and host_ip if defined
-    #         run next when done
 
     # get ip addresses
     my @ips=$db->query_all_one('select ip from report '.(@$where ? 'where ('.join(' AND ',@$where).') ' : '').' group by ip order by ip',@$args);
@@ -222,24 +221,20 @@ sub policy_calc($where,$args,$host_ip,$next){
 	if($main::select->load()){
 	    sleep 1;
 	};
-	DDgrey::Policy->ensure_policy($ip,sub{policy_calc_done($ip,$done,$next)});
+	DDgrey::Policy->ensure_policy($ip,sub{policy_calc_done($ip,$done)});
 	$select->run_once(0);
     };
     if(@ips){
 	$select->run();
-    }
-    else{
-	&$next();
     };
 };
 
-sub policy_calc_done($ip,$done,$next){
-    # effekt: runs next if all ip in done
+sub policy_calc_done($ip,$done){
+    # effekt: stops select loop if all ip in done
     #         are marked as done. marks ip as done
 
     $done->{$ip}=1;
     if(not grep {!defined($done->{$_})} keys %$done){
-	&$next();
 	$select->exit();
     };
 };
@@ -289,7 +284,7 @@ sub policy_report_line($proto){
     $s.=$proto->{reason};
     $s.="\n";
 
-    return $r;
+    return $s;
 };
 
 sub deltafm($s){
@@ -331,7 +326,7 @@ sub event_report_line($proto){
     $s.=sprintf('%-16s',$proto->{event});
     $s.="\n";
     if($proto->{e_from} or $proto->{e_to}){
-	$s.=$proto->{e_from}." -> ".$proto->{e_to}."\n";
+	$s.=($proto->{e_from}//'')." -> ".($proto->{e_to}//'')."\n";
     };
     
     return $s;

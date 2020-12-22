@@ -1,3 +1,10 @@
+ddgrey (0.3) unstable; urgency=medium
+
+  * better status command
+  * minor bugfixes
+
+ -- Per Eric Rosén <per@rosnix.net>  Mon, 21 Dec 2020 12:06:43 +0100
+
 ddgrey (0.2) unstable; urgency=medium
 
   * performance improvements
