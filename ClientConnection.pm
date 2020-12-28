@@ -26,7 +26,8 @@ sub new($class,$server,$fh){
     $self->{fh}=$fh;
     $self->{server}=$server;
     $self->{service}=$server->service();
-    $self->{closing}=0;      # 1 if closing, 2 if closing and no write possible
+    $self->{closing}=0;      # 1 if closing,
+                             # 2 if closing and no write possible
                              # 3 if closed and unregistered from server
     $self->{pending_send}=0; # number of concurrent tasks resulting in data
 
@@ -126,7 +127,7 @@ sub close($self){
     $main::select->unregister($self->{fh});
     $self->{server}->unregister_client($self);
 
-    $self->{fh}->shutdown(2);
+    $self->{fh}->shutdown(2); # shutdown read and write
     $self->{fh}->close();
     $main::debug and main::lm("closed connection from ".$self->client_id(),$self->service());
     
@@ -136,25 +137,25 @@ sub close($self){
     $self->{closing}=3;
 };
 
-sub handle_exception($self){
-    # effect: handles exception from select
+sub handle_exception($self,$fh,$e){
+    # effect: handles exception e from select
 
-    if($self->{fh}->eof()){
+    if($e->{event}=='eof'){
 	# connection closed
 	if($self->{pending_send} > 0){
-	    $main::debug and main::lm("connection closed from ".$self->client_id().", waiting for data",$self->service());
+	    $main::debug and main::lm("EOF received from ".$self->client_id().", waiting for data",$self->service());
 	    $main::select->unregister($self->{fh},1,0);
-	    # mark as closing, no write possible
-	    $self->{closing}=2;
+	    # mark as closing, only try sending pending write
+	    $self->{closing}=1;
 	}
 	else{
-	    $main::debug and main::lm("connection closed from ".$self->client_id().", closing",$self->service());
+	    $main::debug and main::lm("EOF received from ".$self->client_id().", closing",$self->service());
 	    $self->close();
 	};
     }
     else{
 	# other exception
-	$main::debug and main::lm("connection exception from ".$self->client_id(),$self->service());
+	$main::debug and main::lm("connection exception (".$e->{event}.($e->{text}?' '.$e->{text}:'').") from ".$self->client_id(),$self->service());
 	$self->close();
     };
 };
@@ -175,7 +176,7 @@ sub send($self,$line;$next){
 sub close_if_done($self){
     # effect: close if no pending_send and closing requested
 
-    if($self->{closing} and $self->{pending_send}==0){
+    if($self->{closing} > 0 and $self->{closing} < 3 and $self->{pending_send}==0){
 	$main::debug and main::lm("last data sent, closing connection to ".$self->client_id(),$self->service());
 	$self->close();
     };

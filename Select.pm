@@ -65,7 +65,7 @@ sub register_line($self,$fh,$f){
     $self->{select}->add($fh);
     $self->{read_handler}->{$fh}=sub{
 	if(!defined($self->{read_more}->{$fh})){
-	    $fh->eof() and return $self->handle_exception($fh);
+	    $fh->eof() and return $self->handle_exception($fh,{event=>'eof'});
 	};
 
 	if(defined(my $b_line=$fh->getline())){
@@ -210,7 +210,7 @@ sub run_once($self,$sleep){
     
     # file handles with exceptions
     foreach my $fh (@$exception){
-	$self->handle_exception($fh);
+	$self->handle_exception($fh,{event=>'select'});
     };
     
     # readable file handles
@@ -285,6 +285,7 @@ sub run_write($self,$write){
 		else{
 		    $main::debug and main::lm("could not write to $fh",undef);
 		    unshift @{$self->{write_buffer}->{$fh}},$f;
+		    $self->handle_exception($fh,{event=>'write error',text=>$!});
 		    last CHUNK;
 		};
 	    };	    
@@ -307,15 +308,16 @@ sub load($self){
     return 0;
 };
 
-sub handle_exception($self,$fh){
+sub handle_exception($self,$fh,$e){
     # effect: handles exception (often closed connection) on fh
-
+    #         details are in hash e: keys exception and optional text
+    
     # remove mark of more to read
     delete $self->{read_more}->{$fh};
     
     if(defined($self->{exception_handler}->{$fh})){
 	# run registered handler
-	return &{$self->{exception_handler}->{$fh}}($fh);
+	return &{$self->{exception_handler}->{$fh}}($fh,$e);
     }
     else{
 	# otherwise, unregister
@@ -334,7 +336,7 @@ sub close($self){
     # effect: closes select, send exception to registered file handles
     
     foreach my $fh ($self->{select}->handles()){
-	$self->handle_exception($fh);
+	$self->handle_exception($fh,{event=>'close'});
     };
 };
 

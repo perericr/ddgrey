@@ -68,6 +68,7 @@ sub handle_command($self,$item){
     # -- quit --
     if($command eq 'quit'){
 	$self->send("250 closing connection\r\n",sub{$self->quit()});
+	return;
     };
 
     # ---- other comands ----
