@@ -140,7 +140,7 @@ sub close($self){
 sub handle_exception($self,$fh,$e){
     # effect: handles exception e from select
 
-    if($e->{event}=='eof'){
+    if($e->{event} eq 'eof'){
 	# connection closed
 	if($self->{pending_send} > 0){
 	    $main::debug and main::lm("EOF received from ".$self->client_id().", waiting for data",$self->service());
