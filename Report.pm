@@ -10,6 +10,7 @@ use Data::Dumper; # DEBUG
 use DDgrey::Perl6::Parameters;
 
 use DDgrey::DBStore qw($db);
+use DDgrey::RBL;
 
 use parent qw(DDgrey::DBModel);
 
@@ -237,7 +238,7 @@ sub duplicate($self){
 sub resolve($self,$next){
     # effect: sets value for domain from DNS, runs next on success
 
-    DDgrey::DNS::verified_domain_next(
+    DDgrey::RBL::verified_domain_next(
 	$self->{ip},
 	sub{
 	    my $domain=shift();

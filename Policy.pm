@@ -15,6 +15,7 @@ use Socket;
 use DDgrey::Config;
 use DDgrey::DBStore qw($db);
 use DDgrey::DNS qw(resolved);
+use DDgrey::RBL;
 use DDgrey::Report;
 use DDgrey::Traps qw($traps);
 
@@ -192,7 +193,7 @@ sub check_status($self,$from,$to){
 sub resolve($self,$next){
     # effect: sets value of domain, runs next
 
-    DDgrey::DNS::verified_domain_next(
+    DDgrey::RBL::verified_domain_next(
 	$self->{ip},
 	sub{
 	    my $domain=shift();
@@ -210,26 +211,18 @@ sub update($self,$next){
 	$self->{resolved}=shift();
 	$self->update_if_ready($next);
     });
-    DDgrey::DNS::is_dynamic_next($self->{ip},sub{
+    DDgrey::RBL::is_dynamic_next($self->{ip},sub{
 	$self->{is_dynamic}=shift();
 	$self->update_if_ready($next);
     });
-    DDgrey::DNS::bl_lookup_next($self->{ip},'zen.spamhaus.org',sub{
-	my $res=shift();
-	$self->{spamhaus}=defined($res) ? @$res : undef;
-	$self->update_if_ready($next);
-   });
-    DDgrey::DNS::bl_lookup_next($self->{ip},'bl.spamcop.net',sub{
-	my $res=shift();
-	$self->{spamcop}=defined($res) ? @$res : undef;
-	$self->update_if_ready($next);
-   });
-    DDgrey::DNS::bl_lookup_next($self->{ip},'dnsbl.sorbs.net',sub{
-	my $res=shift();
-	$self->{sorbs}=defined($res) ? grep {$_ ne '127.0.0.10' } @$res : undef;
-	$self->update_if_ready($next);
-   });
-    DDgrey::DNS::dnswl_score_next($self->{ip},sub{
+    for my $rbl (DDgrey::RBL::rbls()){
+	DDgrey::RBL::rbl_lookup_next($rbl,$self->{ip},sub{
+	    my $res=shift();
+	    $self->{$rbl->{name}}=defined($res) ? @$res : undef;
+	    $self->update_if_ready($next);
+        });
+    }
+    DDgrey::RBL::dnswl_score_next($self->{ip},sub{
 	$self->{dnswl}=shift();
 	$self->update_if_ready($next);
     });
@@ -237,18 +230,19 @@ sub update($self,$next){
 
 sub update_if_ready($self,$next){
     # effect: calculates policy based on reports, then runs next
-    #         if name resolution is done
-    
-    if(
-	exists($self->{resolved}) and 
-	exists($self->{is_dynamic}) and 
-	exists($self->{spamhaus}) and 
-	exists($self->{spamcop}) and 
-	exists($self->{sorbs}) and 
-	exists($self->{dnswl})
-	){
-	$self->update_resolved($next);
+    #         if name and RBL resolution is done
+
+    my @keys=('resolved','is_dynamic','dnswl');
+    push @keys,map {$_->{name}} DDgrey::RBL::rbls();
+
+    use Data::Dumper;
+    for my $key (@keys){
+	if(!exists($self->{$key})){
+	    return;
+	};
     };
+    
+    $self->update_resolved($next);
 };
 
 sub update_resolved($self,$next){
@@ -302,33 +296,18 @@ sub update_resolved($self,$next){
 	$reasons->{dynamic}='dynamic IP';
     };
 
-    # lowest score if listed in Spamhaus ZEN 
-    if(!defined($self->{spamhaus})){
-	$self->set_prel();
-    };
-    if($self->{spamhaus}){
-	$scores->{spamhaus}=-100;
-	$reasons->{spamhaus}='Spamhaus ZEN';
-    };
+    # score from RBLs
+    for my $rbl (DDgrey::RBL::rbls()){
+	if(!defined($self->{$rbl->{name}})){
+	    $self->set_prel();
+	};
 
-    # lowest score if listed in Spamcop 
-    if(!defined($self->{spamcop})){
-	$self->set_prel();
+	if($self->{$rbl->{name}}){
+	    $scores->{$rbl->{name}}=$rbl->{score};
+	    $reasons->{$rbl->{name}}=$rbl->{title};
+	};
     };
-    if($self->{spamcop}){
-	$scores->{spamcop}=-80;
-	$reasons->{spamcop}='Spamcop';
-    };
-
-    # lowest score if listed in SORBS
-    if(!defined($self->{sorbs})){
-	$self->set_prel();
-    };
-    if($self->{sorbs}){
-	$scores->{sorbs}=-10;
-	$reasons->{sorbs}='SORBS';
-    };
-
+    
     # score DNSWL
     if(!defined($self->{dnswl})){
 	$self->set_prel();
@@ -363,18 +342,25 @@ sub update_resolved($self,$next){
     };
 
     # -- blacklist result adjustment --
-    
-    # remove score from probably erratic SORBS listing
-    if(($scores->{ok}//0 >= 20 or $self->{dnswl} > 1) and $reasons->{sorbs}){
-	$reasons->{sorbs}='SORBS false';
-	delete $scores->{sorbs};
-    };
-    # remove score from probably erratic Spamcop listing
-    if(($scores->{ok}//0 >= 30 or $self->{dnswl} > 1) and $reasons->{spamcop}){
-	$reasons->{spamcop}='Spamcop false';
-	delete $scores->{spamcop};
+
+    # remove score from probably erratic listing
+    for my $rbl (DDgrey::RBL::rbls()){
+	if(defined($rbl->{false})){
+	    if(($scores->{ok}//0 >= $rbl->{false} or $self->{dnswl} > 1) and $reasons->{$rbl->{name}}){
+		$reasons->{$rbl->{name}}='SORBS false';
+		delete $scores->{$rbl->{name}};
+	    };
+	};
     };
 
+    # if IP is matched in any RBL
+    my $rbl_match=0;
+    for my $rbl (DDgrey::RBL::rbls){
+	if($self->{$rbl->{name}}){
+	    $rbl_match=1;
+	};
+    };
+    
     # -- manual reports --
     
     my $count;
@@ -403,11 +389,11 @@ sub update_resolved($self,$next){
     };
 
     # -- unknown recipients --
-
+    
     $count=DDgrey::Report->count_grouped($self->{ip},'unknown',time()-$search_duration,time());
     if($count > 0){
 	# accept some percentage unknown from trusted domain
-	if($self->{count_7}//0 > 0 and ($self->{dnswl}//0 > 0 or $scores->{ok}//0 > 10) and !($self->{spamcop}//1) and !($self->{spamhaus}//1) and !($self->{is_dynamic}//1)){
+	if($self->{count_7}//0 > 0 and ($self->{dnswl}//0 > 0 or $scores->{ok}//0 > 10) and !$rbl_match and !($self->{is_dynamic}//1)){
 	    no integer;
 	    my $share=$count / $self->{count_7};
  	    if($share > 0.1){

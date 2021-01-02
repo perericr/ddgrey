@@ -75,7 +75,7 @@ exim4 configuration
 if you use Exim 4, add the line "service exim4" to /etc/ddgrey/ddgrey.conf.
 This will make ddgrey parse /var/log/exim4/mainlog for IP address reputation.
 
-Add the lines in exim4.conf to your exim4 rcpt ACL configuration; this
+Add the lines in file exim4.conf to your exim4 rcpt ACL configuration; this
 is located in /etc/exim4/conf.d/acl/30_exim4-config_check_rcpt if you
 use the Debian split exim configuration.
 
@@ -124,14 +124,14 @@ If you wish to send feedback on unparseable spam reports, please add
 
 Configuration directives
 ========================
-Configuration is done in /etc/ddgrey/ddgrey.conf.
+Configuration is done in /etc/ddgrey/ddgrey.conf
 
 The only variables you usually need changing are:
 
 peer	hostname of cooperating ddgrey servers (usually on your other MX)
 service	"exim4" to follow exim4 log files
 
-Other possible variables:
+Other possible variables (default in parentesis):
 
 general
 -------
@@ -150,6 +150,20 @@ grey_short	delay for somewhat trusted hosts (10 minutes)
 grey_min	delay for even more trusted hosts (10 seconds)
 grey_max	maximum delay before blacklisting (24 hours)
 blacklist	duration of blacklisting (60 days)
+
+RBL lookups
+-----------
+rbls		RBL services to use (spamcop sorbs uce-2)
+		possible values:
+		barracuda (requires first asking for permission)
+		sorbs
+		spamcop
+		spamhaus (only free for non-commercial use)
+		uce-2
+		uce-3
+
+rbl_score <name> <score>
+	  	 Score (usually negative) for a match in RBL <name>
 
 MTA interaction
 ---------------
