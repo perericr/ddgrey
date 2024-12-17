@@ -14,8 +14,8 @@ Using ddgrey together with the supplied exim4 ACL snippet will also mean
 some attempts are made to prevent information leakage to spammers, in
 particular about which recipients are valid, and about spamtraps.
 
-IP and domain reputation
-------------------------
+IP and domain reputation checking
+---------------------------------
 An extension to normal greylisting is that the verified reverse domain
 of the sending IP (if any) is used in addition to only the IP itself.
 This automatically allevitates problems when mail are retried from different
@@ -24,24 +24,6 @@ hosts in a pool, and also increases reputation faster for the whole domain.
 The main difference between ddgrey and spam filters like SpamAsssasin is
 that ddgrey is an IP address (and domain) reputation checking tool, while
 SpamAssisin will check message reputation (where address is only a small part).
-
-Credits and copyright
-=====================
-© 2020 Per Eric Rosén (per@rosnix.net). Distributed under GNU GPL 3.0.
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version. See the file "LICENSE".
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-
-exim4.conf based on configuration for greylistd by Tor Slettnes.
-
-This distribution includes a fixed version of Perl6::Parameters.
-Copyright © 2001 Brent Dax. Distributed under the same terms as perl.
 
 System requirements
 ===================
@@ -63,15 +45,17 @@ Date::Parse	     libtimedate-perl
 
 Installation
 ============
-ddgreyd normally run as user "daemon". If you use Exim 4 under Debian,
+ddgreyd normally runs as user "daemon". If you use Exim 4 under Debian,
 change RUNUSER and RUNGROUP in Makefile to "Debian-exim".
 
 "make install" will install in /usr/local and /var (if root) or in $HOME.
 It will also install a default configuration file in /etc/ddgrey (if root)
 or $HOME/.ddgrey if no such file exists.
 
-exim4 configuration
--------------------
+Change Makefile variable BASE to install to somewhere else.
+
+Exim 4 configuration
+--------------------
 if you use Exim 4, add the line "service exim4" to /etc/ddgrey/ddgrey.conf.
 This will make ddgrey parse /var/log/exim4/mainlog for IP address reputation.
 
@@ -79,7 +63,7 @@ Add the lines in file exim4.conf to your exim4 rcpt ACL configuration; this
 is located in /etc/exim4/conf.d/acl/30_exim4-config_check_rcpt if you
 use the Debian split exim configuration.
 
-peering with other ddgrey servers
+Peering with other ddgrey servers
 --------------------------------
 If you have other ddgrey servers you wish to communicate with,
 add lines "peer = <hostname>" to /etc/ddgrey/ddgrey.conf for each server.
@@ -88,7 +72,7 @@ Please ensure in your firewall that they can reach each other on TCP port 722.
 ddgrey has no built-in authentication mechanism. Ensure that you only
 add trusted hosts, for example from an internal VPN.
 
-using spamtraps
+Using spamtraps
 ---------------
 If you wish to set up spamtraps, add the trap addresses to your aliases files
 piped to /dev/null, like "trap.trapson: /dev/null".
@@ -108,7 +92,7 @@ If you use the default config there is already such a line.
 Add that email adresses to you web pages, and make it only visible to spam 
 harvesting robots, for example by putting it in a hidden div.
 
-spam reporting alias
+Spam reporting alias
 --------------------
 If you wish to manually report spam, you can set up a spam reporting alias
 at some of your domains. Add a line <spam>:"|/<path>/ddgrey-report" to your
@@ -121,6 +105,15 @@ are listed with a line "trusted = <ip or network>" in ddgrey.conf.
 If you wish to send feedback on unparseable spam reports, please add
 "return_output = true" to the pipe transport for your alises file. 
 
+Monitoring
+==========
+You can monitor ddgrey policy by the ddgrey command. It will print all current
+policy, possibly limited to a domain / IP address. With the -e option, it
+will instead print all events ddgrey know of, and base policy on.
+With the -rc options, policy will first be recalculated for a given IP address.
+
+Domain, IP and policy (white, grey or blacklisting) are listed.
+Reasons for policy are also listed.
 
 Configuration directives
 ========================
@@ -227,7 +220,6 @@ Debug levels
 
 Protocol for greylist (SMTP-like)
 =================================
-
 check <ip> <from> <to>
     answer "200 white", "200 grey" o "200 black" 
 
@@ -239,7 +231,6 @@ quit
 
 Protocol for peering (SMTP-like)
 ================================
-
 list [<t>]
     list reports on server (possibly from timestamp <t>)
 
@@ -252,3 +243,22 @@ subscribe [<t>]
 
 quit
     quit the connection
+
+Credits and copyright
+=====================
+© 2024 Per Eric Rosén (per@rosnix.net). Distributed under GNU GPL 3.0.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version. See the file "LICENSE".
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+exim4.conf based on configuration for greylistd by Tor Slettnes.
+
+This distribution includes a fixed version of Perl6::Parameters.
+Copyright © 2001 Brent Dax. Distributed under the same terms as perl.
+

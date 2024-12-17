@@ -1,15 +1,9 @@
 prio 1
 ======
-? koll av config-argument
-? säkerställ fortsatt körning vid fel
-? Exim4: tolka logg-datum i rätt tidszon
-T DBD::SQLite::st execute failed: unable to open database file at /usr/lib/site_perl/DDgrey/DB/SQLite.pm line 79, <$fh> line 26. at /usr/lib/site_perl/DDgrey/DBModel.pm line 60 at /usr/lib/site_perl/DDgrey/DBModel.pm line 60
 * IPv6
 
 prio 2
 ======
-* Server: ta bort eget namn från peer (gör det möjligt ha samma dgrey.conf)
-* radering av gamla poster (intervall-jobb startat från Report)
 * support for postfix (http://www.postfix.org/SMTPD_POLICY_README.html)   
 
 prio 3
@@ -20,6 +14,8 @@ prio 3
 vilande
 =======
 * Server: ersätt accept() och stäng med att inte acceptera
+* Server: ta bort eget namn från peer (gör det möjligt ha samma dgrey.conf)
+* radering av gamla poster (intervall-jobb startat från Report)
    
 klart
 =====
@@ -32,3 +28,7 @@ X ta bort push och bara ha pull?
 ? hantera manuell spam-rapportering
 X send() is deprecated on :utf8 handles. This will be a fatal error in Perl 5.30 at /usr/lib/x86_64-linux-gnu/perl/5.28/IO/Socket.pm line 283
 X översättning av kommentarer till engelska
+? koll av config-argument
+? säkerställ fortsatt körning vid fel
+? Exim4: tolka logg-datum i rätt tidszon
+T DBD::SQLite::st execute failed: unable to open database file at /usr/lib/site_perl/DDgrey/DB/SQLite.pm line 79, <$fh> line 26. at /usr/lib/site_perl/DDgrey/DBModel.pm line 60 at /usr/lib/site_perl/DDgrey/DBModel.pm line 60

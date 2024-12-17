@@ -1,3 +1,9 @@
+ddgrey (0.4) unstable; urgency=low
+
+  * compatibility fix for Net::DNS API
+	
+ -- Per Eric Rosén <per@rosnix.net>  Tue, 17 Dec 2024 00:25:23 +0100
+
 ddgrey (0.3) unstable; urgency=medium
 
   * better status command

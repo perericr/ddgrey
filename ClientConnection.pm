@@ -37,7 +37,7 @@ sub new($class,$server,$fh){
     # register
     $main::select->register_line($self->{fh},sub{$self->receive_line(@_)});
     $main::select->register_exception($self->{fh},sub{
-	$self->handle_exception();
+	$self->handle_exception(@_);
     });
 
     $self->{server}->register_client($self);

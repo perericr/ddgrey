@@ -79,7 +79,7 @@ sub dns_lookup($query,$next){
     $main::select->register_read_and_exception($socket,sub{
 	my $socket=shift();
 	my $response;
-	if($resolver->bgisready($socket)){
+	if(!$resolver->bgbusy($socket)){
 	    $response=$resolver->bgread($socket);
 	    $main::debug > 1 and main::lm("got response for $query","dns");
 	}

@@ -141,7 +141,7 @@ sub check_resolved($self,$ip,$from,$to,$next){
     # hämta resultat
     my $res=$self->check_status($from,$to);
 
-    # make report of ckeck
+    # make report of check
     # used for individual triplet greylisting
     my $report=DDgrey::Report->new({
 	unique_event=>1,
